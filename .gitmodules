@@ -1,0 +1,3 @@
+[submodule "nxo64"]
+	path = nxo64
+	url = https://github.com/TSRBerry/nxo64
