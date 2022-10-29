@@ -1,10 +1,23 @@
-from ipcserver.chunk.memory import MemoryChunk
+class MemoryChunk(object):
+    def __init__(self, name, base, size):
+        self.name = name
+        self.base = base
+        self.size = size
+
+    @property
+    def end(self):
+        return self.base + self.size
+
+    def __repr__(self):
+        return 'MemoryChunk(name=%r, base=0x%X, size=0x%X)' % (self.name, self.base, self.size)
 
 
 class AllocatingChunk(MemoryChunk):
+    bytes_allocated = 0
+
     def __init__(self, name, base, size):
         super(AllocatingChunk, self).__init__(name, base, size)
-        self.reset()
+        self._next_ptr = self.base
 
     def reset(self):
         self._next_ptr = self.base
@@ -20,6 +33,3 @@ class AllocatingChunk(MemoryChunk):
         self._next_ptr += allocation_size
         self.bytes_allocated += size
         return result
-
-    def __repr__(self):
-        return 'MemoryChunk(name=%r, base=0x%X, size=0x%X)' % (self.name, self.base, self.size)

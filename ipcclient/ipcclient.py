@@ -11,7 +11,7 @@ from nxo64.files import load_nxo
 from demangling import get_demangled
 from manual_lookup import MANUAL_NAME_LOOKUP
 
-IDA_BASE = 0x7100000000
+BASE_ADDRESS = 0x7100000000
 
 
 def demangle(s):
@@ -380,7 +380,7 @@ def iter_vtables_in_nxo(f):
                     raw_vtable_name = f.addr_to_name[start - 16]
                     interface = demangle(raw_vtable_name)
                 else:
-                    interface = 'IUnknown_%s_0x%X' % (get_cmd_id_hash(vt), start + IDA_BASE)
+                    interface = 'IUnknown_%s_0x%X' % (get_cmd_id_hash(vt), start + BASE_ADDRESS)
                     interface = MANUAL_NAME_LOOKUP.get(interface, interface)
 
                 is_domain = False

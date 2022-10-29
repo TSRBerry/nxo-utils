@@ -1,7 +1,7 @@
 import sys
 
-from nxo64.utils import load_nxo
-from ipcclient import iter_vtables_in_nxo, demangle
+from nxo64.files import load_nxo
+from .ipcclient import iter_vtables_in_nxo, demangle
 
 IDA_BASE = 0x7100000000
 

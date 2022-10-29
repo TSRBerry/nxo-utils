@@ -4,7 +4,7 @@ from io import BytesIO
 from unicorn import *
 from unicorn.arm64_const import *
 
-from nxo64.consts.r_aarch64 import R_AArch64
+from nxo64.consts import R_AArch64
 
 
 def load_nxo_to_unicorn(uc, f, loadbase):

@@ -3,10 +3,8 @@ import re
 import bisect
 import hashlib
 
-from unicorn.arm64_const import *
-
-from ipcserver.known_cmd_ids import all_known_command_ids
-from ipcserver.sim.ipc_server import IPCServerSimulator
+from simulators import DEFAULT_LOAD_BASE, IPCServerSimulator
+from known_cmd_ids import all_known_command_ids 
 from nxo64.files import load_nxo
 from demangling import get_demangled
 
@@ -27,8 +25,6 @@ _ZN2nn2sf4cmif6server6detail34CmifProcessFunctionTableGetterImplINS_4mmnv8IReque
 _ZN2nn2sf4cmif6server6detail34CmifProcessFunctionTableGetterImplINS_4mmnv8IRequestEE18Process_InitializeEPPNS1_13CmifOutHeaderEPS6_PNS2_17CmifServerMessageEONS0_6detail14PointerAndSizeE
 '''
 
-DEFAULT_LOAD_BASE = 0x7100000000
-
 
 def demangle(s):
     value = get_demangled(s)
@@ -37,29 +33,6 @@ def demangle(s):
     if value.startswith(pre) and value.endswith(post):
         value = value[len(pre):-len(post)]
     return value
-
-
-UC_REG_BY_NAME = {
-    "x0": UC_ARM64_REG_X0,
-    "x1": UC_ARM64_REG_X1,
-    "x2": UC_ARM64_REG_X2,
-    "x3": UC_ARM64_REG_X3,
-    "x4": UC_ARM64_REG_X4,
-    "x5": UC_ARM64_REG_X5,
-    "x6": UC_ARM64_REG_X6,
-    "x7": UC_ARM64_REG_X7,
-    "x8": UC_ARM64_REG_X8,
-    "x9": UC_ARM64_REG_X9,
-    "x10": UC_ARM64_REG_X10,
-    "x23": UC_ARM64_REG_X23,
-    "x24": UC_ARM64_REG_X24,
-    "x25": UC_ARM64_REG_X25,
-}
-
-VERBOSE_COMMAND = None
-
-
-# VERBOSE_COMMAND = 0
 
 
 def iter_traces(command_ids_to_try, simulator, process_function):
@@ -229,6 +202,7 @@ def try_match(trace_set, ipc_infos):
                     break
     return ipcset, ipc_infos
 
+
 PUBLIC = False
 
 
@@ -261,9 +235,9 @@ def dump_ipc_filename(fname):
     for offset in got_data_syms:
         vt_ofs = got_data_syms[offset]
         if f.dataoff <= vt_ofs <= f.dataoff + f.datasize:
-            rtti_ofs = simulator.qword(0x7100000000 + vt_ofs + 8) - 0x7100000000
+            rtti_ofs = simulator.qword(DEFAULT_LOAD_BASE + vt_ofs + 8) - DEFAULT_LOAD_BASE
             if f.dataoff <= rtti_ofs <= f.dataoff + f.datasize:
-                this_ofs = simulator.qword(0x7100000000 + rtti_ofs + 8) - 0x7100000000
+                this_ofs = simulator.qword(DEFAULT_LOAD_BASE + rtti_ofs + 8) - DEFAULT_LOAD_BASE
                 if f.rodataoff <= this_ofs <= f.rodataoff + f.rodatasize:
                     sym = f.binfile.read_from('512s', this_ofs)
                     if b'\x00' in sym:
@@ -276,21 +250,21 @@ def dump_ipc_filename(fname):
     for sym in vt_infos:
         vt_ofs = vt_infos[sym]
         if known_func is None:
-            known_func = simulator.qword(0x7100000000 + vt_ofs + 0x20)
+            known_func = simulator.qword(DEFAULT_LOAD_BASE + vt_ofs + 0x20)
         else:
-            assert known_func == simulator.qword(0x7100000000 + vt_ofs + 0x20)
+            assert known_func == simulator.qword(DEFAULT_LOAD_BASE + vt_ofs + 0x20)
     # Find all IPC vtables
     ipc_vts = {}
     for offset in got_data_syms:
         vt_ofs = got_data_syms[offset]
-        vt_base = vt_ofs + 0x7100000000
+        vt_base = vt_ofs + DEFAULT_LOAD_BASE
         if f.dataoff <= vt_ofs <= f.dataoff + f.datasize:
             if simulator.qword(vt_base + 0x20) == known_func:
                 vt = []
                 ofs = 0x30
                 while simulator.qword(vt_base + ofs) != 0:
                     func = simulator.qword(vt_base + ofs)
-                    func_ofs = func - 0x7100000000
+                    func_ofs = func - DEFAULT_LOAD_BASE
                     if f.textoff <= func_ofs <= f.textoff + f.textsize:
                         vt += [func]
                         ofs += 8
@@ -306,9 +280,9 @@ def dump_ipc_filename(fname):
         ipc_info = {'base': vt_base + 0x10, 'funcs': ipc_vts[vt_base]}
         rtti_base = simulator.qword(vt_base + 8)
         if rtti_base != 0:
-            rtti_ofs = rtti_base - 0x7100000000
+            rtti_ofs = rtti_base - DEFAULT_LOAD_BASE
             assert f.dataoff <= rtti_ofs <= f.dataoff + f.datasize
-            this_ofs = simulator.qword(0x7100000000 + rtti_ofs + 8) - 0x7100000000
+            this_ofs = simulator.qword(DEFAULT_LOAD_BASE + rtti_ofs + 8) - DEFAULT_LOAD_BASE
             if f.rodataoff <= this_ofs <= f.rodataoff + f.rodatasize:
                 sym = f.binfile.read_from('512s', this_ofs)
                 if b'\x00' in sym:
@@ -354,7 +328,9 @@ def dump_ipc_filename(fname):
 
         f.binfile.seek(0)
         text_string = f.binfile.read(f.textsize)
-        regex = b'|'.join(re.escape(chr(0x20 | i).encode() + b'\x00\xA0\x52' + chr(0x40 | i).encode() + b'\xC1\x94\x72') for i in range(29))
+        regex = b'|'.join(
+            re.escape(chr(0x20 | i).encode() + b'\x00\xA0\x52' + chr(0x40 | i).encode() + b'\xC1\x94\x72') for i in
+            range(29))
         for i in re.finditer(regex, text_string):
             if i.start() & 3: continue
             idx = bisect.bisect(candidates, (i.start(), 0))
@@ -368,7 +344,8 @@ def dump_ipc_filename(fname):
         #   MOVK W?, #0x4943, LSL#16
         if not s_tables:
             regex = b'|'.join(
-                re.escape(chr(0x60 | i).encode() + b'\xCA\x88\x52' + chr(0x60 | i).encode() + b'\x28\xA9\x72') for i in range(29))
+                re.escape(chr(0x60 | i).encode() + b'\xCA\x88\x52' + chr(0x60 | i).encode() + b'\x28\xA9\x72') for i in
+                range(29))
             for i in re.finditer(regex, text_string):
                 if i.start() & 3: continue
                 idx = bisect.bisect(candidates, (i.start(), 0))

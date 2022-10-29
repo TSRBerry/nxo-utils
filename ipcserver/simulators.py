@@ -1,14 +1,35 @@
+from __future__ import print_function
+
 import struct
+from functools import partial
 
 from capstone import Cs, CS_ARCH_ARM64, CS_MODE_ARM
 from unicorn import UcError
-from unicorn.arm64_const import UC_ARM64_REG_X0, UC_ARM64_REG_X29, UC_ARM64_REG_X30, UC_ARM64_REG_SP, UC_ARM64_REG_PC
+from unicorn.arm64_const import *
 
-from ipcserver.chunk.allocating import AllocatingChunk
-from ipcserver.chunk.memory import MemoryChunk
-from ipcserver.ipcserver_modern import DEFAULT_LOAD_BASE
+from chunks import MemoryChunk, AllocatingChunk
+from tracers import IPCServerTrace
 from nxo64.compat import iter_range
 from unicornhelpers import create_unicorn_arm64, load_nxo_to_unicorn
+
+DEFAULT_LOAD_BASE = 0x7100000000
+
+UC_REG_BY_NAME = {
+    "x0": UC_ARM64_REG_X0,
+    "x1": UC_ARM64_REG_X1,
+    "x2": UC_ARM64_REG_X2,
+    "x3": UC_ARM64_REG_X3,
+    "x4": UC_ARM64_REG_X4,
+    "x5": UC_ARM64_REG_X5,
+    "x6": UC_ARM64_REG_X6,
+    "x7": UC_ARM64_REG_X7,
+    "x8": UC_ARM64_REG_X8,
+    "x9": UC_ARM64_REG_X9,
+    "x10": UC_ARM64_REG_X10,
+    "x23": UC_ARM64_REG_X23,
+    "x24": UC_ARM64_REG_X24,
+    "x25": UC_ARM64_REG_X25,
+}
 
 
 class Nx64Simulator(object):
@@ -176,3 +197,79 @@ class Nx64Simulator(object):
             raise NotImplementedError(
                 "Class %r does not implement %r" % (self.current_trace.__class__.__name__, method_name))
         return method(*args, **kwargs)
+
+
+class IPCServerSimulator(Nx64Simulator):
+    def __init__(self, nxo):
+        super(IPCServerSimulator, self).__init__(nxo)
+        self.ipc_magic = 0x49434653
+        message_data = self._make_message_data(1600) + (b'\x00' * 0x1000)
+        self.message_ptr = self.load_host_data(message_data)
+
+        message_struct_data = struct.pack('<QQ', self.message_ptr, len(message_data))
+        self.message_struct_ptr = self.load_host_data(message_struct_data, reset=True)
+
+        ipc_functions = [
+            partial(self.invoke_trace_method, 'PrepareForProcess'),
+            # PrepareForProcess(nn::sf::cmif::CmifMessageMetaInfo const&)
+            partial(self.invoke_trace_method, 'OverwriteClientProcessId'),  # OverwriteClientProcessId(ulong *)
+            partial(self.invoke_trace_method, 'GetBuffers'),  # GetBuffers(nn::sf::detail::PointerAndSize *)
+            partial(self.invoke_trace_method, 'GetInNativeHandles'),  # GetInNativeHandles(nn::sf::NativeHandle *)
+            partial(self.invoke_trace_method, 'GetInObjects'),
+            # GetInObjects(nn::sf::cmif::server::CmifServerObjectInfo *)
+            partial(self.invoke_trace_method, 'BeginPreparingForReply'),
+            # BeginPreparingForReply(nn::sf::detail::PointerAndSize *)
+            partial(self.invoke_trace_method, 'SetBuffers'),  # SetBuffers(nn::sf::detail::PointerAndSize *)
+            partial(self.invoke_trace_method, 'SetOutObjects'),
+            # SetOutObjects(nn::sf::cmif::server::CmifServerObjectInfo *)
+            partial(self.invoke_trace_method, 'SetOutNativeHandles'),  # SetOutNativeHandles(nn::sf::NativeHandle *)
+            partial(self.invoke_trace_method, 'BeginPreparingForErrorReply'),
+            # BeginPreparingForErrorReply(nn::sf::detail::PointerAndSize *,ulong)
+            partial(self.invoke_trace_method, 'EndPreparingForReply'),  # EndPreparingForReply(void)
+        ]
+
+        ipc_function_pointers = [self.create_trace_function_pointer(i) for i in ipc_functions]
+
+        ipc_vtable_ptr = self.load_host_data(
+            struct.pack('<' + 'Q' * len(ipc_function_pointers), *ipc_function_pointers))
+        self.ipc_object_ptr = self.load_host_data(struct.pack('<QQ', ipc_vtable_ptr, 0))
+
+        target_functions = [partial(self.invoke_trace_method, 'target_function', i * 8) for i in range(512)]
+        target_function_pointers = [self.create_trace_function_pointer(i) for i in target_functions]
+
+        target_vtable_ptr = self.load_host_data(
+            struct.pack('<' + 'Q' * len(target_function_pointers), *target_function_pointers))
+        self.target_object_ptr = self.load_host_data(struct.pack('<QQ', target_vtable_ptr, 0))
+
+        ret_instruction_ptr = self.load_host_data(struct.pack('<I', 0xd65f03c0))
+        in_object_vtable_ptr = self.load_host_data(struct.pack('<Q', ret_instruction_ptr) * 16)
+        self.in_object_ptr = self.load_host_data(struct.pack('<Q', in_object_vtable_ptr) + b'\0' * (8 * 16))
+
+        self.buffer_memory = self.load_host_data(b'\x00' * 0x1000)
+        self.output_memory = self.load_host_data(b'\x00' * 0x1000)
+
+    def _make_message_data(self, cmd_id):
+        ipc_magic = 0x49434653
+        return struct.pack('<QQ', ipc_magic, cmd_id)
+
+    def trace_cmd(self, dispatch_func, cmd_id):
+        trace = self.try_trace_cmd(dispatch_func, cmd_id, struct.pack('<QQQQQQ', 0, 0, 0, 0, 0, 0))
+        if trace.is_correct():
+            return trace
+        # print 'retry'
+        trace = self.try_trace_cmd(dispatch_func, cmd_id, struct.pack('<QQQQQQ', 1, 1, 1, 1, 1, 1))
+        if trace.is_correct():
+            return trace
+        for buffer_size in (128, 33):
+            # print 'retry'
+            trace = self.try_trace_cmd(dispatch_func, cmd_id, struct.pack('<QQQQ', 0, 0, 0, 0), buffer_size=buffer_size)
+            if trace.is_correct():
+                return trace
+        print('retry?')
+        return trace  # oh well
+
+    def try_trace_cmd(self, dispatch_func, cmd_id, data, **kwargs):
+        self.uc.mem_write(self.message_ptr, self._make_message_data(cmd_id) + data)
+        trace = IPCServerTrace(self, dispatch_func, cmd_id, **kwargs)
+        self.trace_call(dispatch_func, [self.target_object_ptr, self.ipc_object_ptr, self.message_struct_ptr], trace)
+        return trace
