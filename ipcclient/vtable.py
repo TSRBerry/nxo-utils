@@ -1,5 +1,6 @@
 import struct
 
+from nxo64.compat import iter_range
 from nxo64.files import load_nxo
 
 from common import BASE_ADDRESS
@@ -44,10 +45,9 @@ def iter_vtables_in_nxo(f):
             elif addend:
                 data_syms[offset] = addend
 
-    # print hex(f.dataoff), f.dataoff < 0xCE7AA8
-    # print struct.unpack_from('<q', binstring, 0xCE7AA8)[0]
+    # print(hex(f.dataoff), f.dataoff < 0xCE7AA8)
+    # print(struct.unpack_from('<q', binstring, 0xCE7AA8)[0])
     for i in range(f.dataoff, len(binstring), 8):
-        # print hex(i), hex(len(binstring))
         value = struct.unpack_from('<q', binstring, i)[0]
         if value in (-0x10, -0x20):
             # if i == 0xCE7AA8:
@@ -61,7 +61,7 @@ def iter_vtables_in_nxo(f):
 
             vt = []
             funcptrs = []
-            for j in range(start, end, 8):
+            for j in iter_range(start, end, 8):
                 entry = fptr_syms[j]
                 cmd_id = get_function_cmd_id(binstring, entry, f.plt_lookup, f.rodataoff, f.dataoff)
                 if cmd_id is not None:
@@ -75,7 +75,7 @@ def iter_vtables_in_nxo(f):
                 raw_vtable_name = ''
                 if start - 8 in data_syms:
                     rtti_string = data_syms[data_syms[start - 8] + 8]
-                    raw_vtable_name = binstring[rtti_string:binstring.index('\0', rtti_string)]
+                    raw_vtable_name = binstring[rtti_string:binstring.index(b'\0', rtti_string)].decode()
                     interface = demangle(raw_vtable_name)
                 elif start - 16 in f.addr_to_name:
                     raw_vtable_name = f.addr_to_name[start - 16]
@@ -102,7 +102,7 @@ def dump_vtables(fname):
     for vtable in iter_vtables_in_nxo(f):
         # print '?'
         # continue
-        print('  %r: {' % vtable.interface)
+        print("  '%s': {" % vtable.interface)
         for entry in vtable.entries:
             if entry.cmd is not None:
                 data = {}
@@ -125,12 +125,12 @@ def dump_vtables(fname):
                     if i not in data: continue
                     v = data[i]
                     if isinstance(v, (list, bool, str)):
-                        v = repr(v)
+                        v = repr(v).strip()
                     else:
-                        if v >= 10:
+                        if v.isnumeric():
                             v = '0x%X' % v
                         else:
-                            v = str(v)
+                            v = str(v).strip()
                         v = v.rjust(5)
                     parts.append('"%s": %s' % (i, v))
                 print('    %5d: {%s},' % (entry.cmd, ', '.join(parts)))

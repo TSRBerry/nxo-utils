@@ -56,7 +56,7 @@ def get_last_immediate_argument(insns):
     if stores:
         last_store = None
         end = sorted(stores.keys())[-1] + 8
-        for off in range(0, end, 8):
+        for off in iter_range(0, end, 8):
             if off not in stores:
                 break
             val = stores[off]
@@ -65,7 +65,7 @@ def get_last_immediate_argument(insns):
         if last_store is not None:
             return last_store
 
-    for i in range(8, -1, -1):
+    for i in iter_range(8, -1, -1):
         if immregs[i] is not None:
             return immregs[i]
 
@@ -83,7 +83,7 @@ def is_process_function(binstring, func_start):
     counter = 0
     try:
         i = func_start
-        instr = md.disasm(binstring[i:i + 4], i).next()
+        instr = next(md.disasm(binstring[i:i + 4], i))
         while instr.mnemonic not in ('ret',):
             # if instr.mnemonic in ('movz', 'movk'):
             #	print instr.mnemonic, repr(instr.op_str), instr.op_str.endswith(', #0x4653')
@@ -98,7 +98,7 @@ def is_process_function(binstring, func_start):
                 # print '.'
                 counter += 1
             i += 4
-            instr = md.disasm(binstring[i:i + 4], i).next()
+            instr = next(md.disasm(binstring[i:i + 4], i))
         func_end = i + 4
     except StopIteration:
         is_process_function_cache[func_start] = False

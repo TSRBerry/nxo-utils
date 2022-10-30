@@ -3,6 +3,7 @@ import struct
 
 from capstone import Cs, CS_ARCH_ARM64, CS_MODE_ARM
 from capstone.arm64_const import ARM64_OP_IMM
+from nxo64.compat import iter_range
 
 from ipcclient.functions import find_ret, is_process_function, get_last_immediate_argument
 
@@ -12,9 +13,9 @@ def get_function_cmd_id_old(binstring, func_start, func_end, rostart, roend):
     counter = 0
     got_movz = False
     got_movk = False
-    for i in range(func_start, func_end, 4):
+    for i in iter_range(func_start, func_end, 4):
         try:
-            instr = md.disasm(binstring[i:i + 4], i).next()
+            instr = next(md.disasm(binstring[i:i + 4], i))
         except StopIteration:
             return None
         if instr.mnemonic == 'movz' and instr.op_str.endswith(', #0x4f43, lsl #16'):
@@ -29,9 +30,9 @@ def get_function_cmd_id_old(binstring, func_start, func_end, rostart, roend):
 
     md.detail = True
     constants = {}
-    for i in range(func_start, func_end, 4):
+    for i in iter_range(func_start, func_end, 4):
         try:
-            instr = md.disasm(binstring[i:i + 4], i).next()
+            instr = next(md.disasm(binstring[i:i + 4], i))
         except StopIteration:
             return None
 
@@ -62,9 +63,9 @@ def get_function_cmd_id(binstring, func_start, plt_lookup, rostart, roend):
     calls = 0
     block_starts = set()
     block_starts.add(func_start)
-    for i in range(func_start, func_end, 4):
+    for i in iter_range(func_start, func_end, 4):
         try:
-            insn = md.disasm(binstring[i:i + 4], i).next()
+            insn = next(md.disasm(binstring[i:i + 4], i))
         except StopIteration:
             break
         if insn.mnemonic in ('bl', 'blr'):
@@ -84,9 +85,9 @@ def get_function_cmd_id(binstring, func_start, plt_lookup, rostart, roend):
         return None
 
     blocks = []
-    for i in range(func_start, func_end, 4):
+    for i in iter_range(func_start, func_end, 4):
         try:
-            insn = md.disasm(binstring[i:i + 4], i).next()
+            insn = next(md.disasm(binstring[i:i + 4], i))
         except StopIteration:
             break
         if i in block_starts:
