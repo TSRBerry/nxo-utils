@@ -4,7 +4,7 @@ import bisect
 import hashlib
 
 from ipcserver.simulators import DEFAULT_LOAD_BASE, IPCServerSimulator
-from common.known_cmd_ids import all_known_command_ids
+from common.known_cmd_ids import ALL_KNOWN_COMMAND_IDS
 from nxo64.files import load_nxo
 from common.demangling import get_demangled
 
@@ -28,8 +28,8 @@ _ZN2nn2sf4cmif6server6detail34CmifProcessFunctionTableGetterImplINS_4mmnv8IReque
 
 def demangle(s):
     value = get_demangled(s)
-    pre = b'nn::sf::cmif::server::detail::CmifProcessFunctionTableGetter<'
-    post = b', void>::s_Table'
+    pre = 'nn::sf::cmif::server::detail::CmifProcessFunctionTableGetter<'
+    post = ', void>::s_Table'
     if value.startswith(pre) and value.endswith(post):
         value = value[len(pre):-len(post)]
     return value
@@ -362,7 +362,7 @@ def dump_ipc_filename(fname):
     # Get traces
     traceset = []
     for ind, process_function in enumerate(process_functions):
-        traceset.append(list(iter_traces(all_known_command_ids, simulator, process_function)))
+        traceset.append(list(iter_traces(ALL_KNOWN_COMMAND_IDS, simulator, process_function)))
 
     ipcset, ipc_infos = try_match(traceset, ipc_infos)
 

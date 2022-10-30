@@ -31,7 +31,7 @@ def get_demangled(s):
         # if python_result is None:
         #	#print 'demangler failed:', repr(s)
         #	python_result = s
-        demangle_cache[s] = subprocess.check_output(['c++filt', '-n', s]).strip()
+        demangle_cache[s] = subprocess.check_output(['c++filt', '-n', s]).decode().strip()
     # if CHECK_CXX_FILT:
     #	value = subprocess.check_output(['c++filt', '-n', s]).strip()
     #	if python_result != value:
