@@ -1,14 +1,15 @@
 import os
 import struct
 import sys
-from io import StringIO
+from io import BytesIO
 
 from capstone import *
 from unicorn import *
 from unicorn.arm64_const import *
 
-import nxo64
-from demangling import get_demangled
+from nxo64.consts import R_AArch64
+from nxo64.files import load_nxo
+from common.demangling import get_demangled
 from nxo64.compat import iter_range
 
 '''
@@ -26,45 +27,12 @@ _ZN2nn2sf4cmif6server6detail34CmifProcessFunctionTableGetterImplINS_4mmnv8IReque
 _ZN2nn2sf4cmif6server6detail34CmifProcessFunctionTableGetterImplINS_4mmnv8IRequestEE18Process_InitializeEPPNS1_13CmifOutHeaderEPS6_PNS2_17CmifServerMessageEONS0_6detail14PointerAndSizeE
 '''
 
-ALL_COMMAND_IDS = set(
-    [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30,
-     31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59,
-     60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88,
-     89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 4201, 106, 107, 108, 4205, 110, 111, 112, 113,
-     114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 20501, 128, 129, 130, 131, 132, 133, 134, 135,
-     136, 137, 138, 139, 140, 141, 2413, 8216, 150, 151, 2201, 2202, 2203, 2204, 2205, 2207, 10400, 2209, 8219, 8220,
-     8221, 30900, 30901, 30902, 8223, 90300, 190, 8224, 199, 200, 201, 202, 203, 204, 205, 206, 207, 208, 209, 210, 211,
-     212, 213, 214, 215, 216, 217, 218, 220, 20701, 222, 223, 230, 231, 250, 251, 252, 2301, 2302, 255, 256, 10500, 261,
-     2312, 280, 290, 291, 299, 300, 301, 302, 303, 304, 305, 306, 307, 308, 309, 310, 311, 312, 313, 314, 2101, 20800,
-     20801, 322, 323, 2102, 8250, 350, 2400, 2401, 2402, 2403, 2404, 2405, 10600, 10601, 2411, 2412, 2450, 2414, 8253,
-     10610, 2451, 2421, 2422, 2424, 8255, 2431, 8254, 2433, 2434, 406, 8257, 400, 401, 402, 403, 404, 405, 10300, 407,
-     408, 409, 410, 411, 2460, 20900, 8252, 412, 2501, 10700, 10701, 10702, 8200, 1106, 1107, 500, 501, 502, 503, 504,
-     505, 506, 507, 508, 510, 511, 512, 513, 520, 521, 90200, 8201, 90201, 540, 30810, 542, 543, 544, 545, 546, 30811,
-     30812, 8202, 8203, 8291, 600, 601, 602, 603, 604, 605, 606, 607, 608, 609, 610, 611, 612, 613, 614, 8295, 620,
-     8204, 8296, 630, 105, 640, 4203, 8225, 2050, 109, 30830, 2052, 8256, 700, 701, 702, 703, 704, 705, 706, 707, 708,
-     709, 8207, 20600, 8208, 49900, 751, 11000, 127, 8209, 800, 801, 802, 803, 804, 805, 806, 821, 822, 823, 824, 8211,
-     850, 851, 852, 7000, 2055, 900, 901, 902, 903, 904, 905, 906, 907, 908, 909, 3000, 3001, 3002, 160, 8012, 8217,
-     8013, 320, 997, 998, 999, 1000, 1001, 1002, 1003, 1004, 1005, 1006, 1007, 1008, 1009, 1010, 1011, 1012, 1013, 1020,
-     1031, 1032, 1033, 1034, 1035, 1036, 1037, 1038, 1039, 1040, 1041, 1042, 1043, 1044, 1045, 1046, 1047, 1061, 1062,
-     1063, 21000, 1100, 1101, 1102, 2053, 5202, 5203, 8218, 3200, 3201, 3202, 3203, 3204, 3205, 3206, 3207, 3208, 3209,
-     3210, 3211, 3214, 3215, 3216, 3217, 40100, 40101, 541, 1200, 1201, 1202, 1203, 1204, 1205, 1206, 1207, 1208, 8292,
-     547, 20500, 8293, 2054, 2601, 8294, 40200, 40201, 1300, 1301, 1302, 1303, 1304, 8227, 20700, 221, 8228, 8297, 8229,
-     4206, 1400, 1401, 1402, 1403, 1404, 1405, 1406, 1411, 1421, 1422, 1423, 1424, 30100, 30101, 30102, 1431, 1432,
-     30110, 30120, 30121, 1451, 1452, 1453, 1454, 1455, 1456, 1457, 1458, 1471, 1472, 1473, 1474, 1500, 1501, 1502,
-     1503, 1504, 1505, 2300, 30200, 30201, 30202, 30203, 30204, 30205, 30210, 30211, 30212, 30213, 30214, 30215, 30216,
-     30217, 260, 1600, 1601, 1602, 1603, 60001, 60002, 30300, 2051, 20100, 20101, 20102, 20103, 20104, 20110, 1700,
-     1701, 1702, 1703, 8222, 30400, 30401, 30402, 631, 20200, 20201, 1800, 1801, 1802, 1803, 2008, 10011, 30500, 7992,
-     7993, 7994, 7995, 7996, 7997, 7998, 7999, 8000, 8001, 8002, 8011, 20300, 20301, 8021, 1900, 1901, 1902, 6000, 6001,
-     6002, 10100, 10101, 10102, 10110, 30820, 321, 1941, 1951, 1952, 1953, 8100, 20400, 20401, 8210, 2000, 2001, 2002,
-     2003, 2004, 2005, 2006, 2007, 10200, 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 10211, 2020, 2021,
-     30700, 2030, 2031, 8251, 90100, 90101, 90102])
-
 
 # ALL_COMMAND_IDS = set(range(30))
 
 def load_nxo_to_capstone(mu, fn, loadbase):
     with open(fn, 'rb') as fileobj:
-        f = nxo64.load_nxo(fileobj)
+        f = load_nxo(fileobj)
 
     stables = []
     for sym in f.symbols:
@@ -75,7 +43,7 @@ def load_nxo_to_capstone(mu, fn, loadbase):
         else:
             sym.resolved = 0
 
-    resultw = StringIO()
+    resultw = BytesIO()
     f.binfile.seek(0)
     resultw.write(f.binfile.read_to_end())
 
@@ -86,16 +54,16 @@ def load_nxo_to_capstone(mu, fn, loadbase):
     for offset, r_type, sym, addend in f.relocations:
         ea = loadbase + offset
 
-        if r_type == nxo64.R_AARCH64_RELATIVE:
+        if r_type == R_AArch64.RELATIVE:
             assert sym is None, 'R_AARCH64_RELATIVE with sym?'
             newval = (loadbase + addend)
             write_qword(ea, newval)
-        elif r_type == nxo64.R_AARCH64_JUMP_SLOT or r_type == nxo64.R_AARCH64_GLOB_DAT:
+        elif r_type == R_AArch64.JUMP_SLOT or r_type == R_AArch64.GLOB_DAT:
             assert sym is not None
             assert addend == 0
             newval = sym.resolved
             write_qword(ea, newval)
-        elif r_type == nxo64.R_AARCH64_ABS64:
+        elif r_type == R_AArch64.ABS64:
             assert sym is not None
             newval = sym.resolved
             if addend != 0:
@@ -154,7 +122,7 @@ for i in sys.argv[1:]:
         with open(i, 'rb') as f:
             f.seek(4)
             name = f.read(12)
-            name = name[:name.index('\0')]
+            name = name[:name.index(b'\0')]
     else:
         name = name.split('/')[-1].split('_')[0].split('-')[0].split('.')[0].lower()
     # title_id = i.split('/')[-3]
@@ -175,7 +143,7 @@ for i in sys.argv[1:]:
     addr = 0x1000
     mu.reg_write(UC_ARM64_REG_X0, 3 << 20)
     mu.mem_map(addr, 0x1000)
-    fpstartinstrs = '\x41\x10\x38\xd5\x00\x00\x01\xaa\x40\x10\x18\xd5\x40\x10\x38\xd5\xc0\x03\x5f\xd6'
+    fpstartinstrs = b'\x41\x10\x38\xd5\x00\x00\x01\xaa\x40\x10\x18\xd5\x40\x10\x38\xd5\xc0\x03\x5f\xd6'
     mu.mem_write(addr, fpstartinstrs)
     mu.emu_start(addr, addr + len(fpstartinstrs) - 4)
     mu.mem_unmap(addr, 0x1000)
@@ -210,17 +178,17 @@ for i in sys.argv[1:]:
         print(', '.join('%s=%X' % i for i in values))
 
 
-    message_data = struct.pack('<QQ', MAGIC, 1600) + ''.join(struct.pack('<Q', 0) for i in range(512))
+    message_data = struct.pack('<QQ', MAGIC, 1600) + b''.join(struct.pack('<Q', 0) for i in range(512))
     message = copy_in(message_data)
 
     message_struct_data = struct.pack('<QQ', message, len(message_data))
     message_struct = copy_in(message_struct_data)
 
     RET0 = 0x25F44002A8
-    ipc_vtable = copy_in(''.join(struct.pack('<Q', 0x800000000 + i * 8) for i in range(512)))
+    ipc_vtable = copy_in(b''.join(struct.pack('<Q', 0x800000000 + i * 8) for i in range(512)))
     ipc_object = copy_in(struct.pack('<QQ', ipc_vtable, 0))
 
-    target_vtable = copy_in(''.join(struct.pack('<Q', 0x900000000 + i * 8) for i in range(512)))
+    target_vtable = copy_in(b''.join(struct.pack('<Q', 0x900000000 + i * 8) for i in range(512)))
     target_object = copy_in(struct.pack('<QQ', target_vtable, 0))
 
     bufbuf = malloc(0x1000)
@@ -271,17 +239,17 @@ for i in sys.argv[1:]:
         global actual_result_thing
         arg = mu.reg_read(UC_ARM64_REG_X1)
         desc = [dword(arg + i) for i in range(0, 0x90, 4)]
-        buffercount = desc[0x18 / 4]
-        bytes_in = desc[8 / 4] - 0x10
-        bytes_out = desc[0x10 / 4] - 0x10
+        buffercount = desc[0x18 // 4]
+        bytes_in = desc[8 // 4] - 0x10
+        bytes_out = desc[0x10 // 4] - 0x10
         actual_result_thing = {
             'inbytes': bytes_in,
             'outbytes': bytes_out,
-            'ininterfaces': [None] * desc[0x1c / 4],
-            'outinterfaces': [None] * desc[0x20 / 4],
-            'inhandles': desc[0x4C / 4:0x4C / 4 + desc[0x24 / 4]],
-            'outhandles': desc[0x6C / 4:0x6C / 4 + desc[0x28 / 4]],
-            'buffers': desc[0x2c / 4:0x2c / 4 + desc[0x18 / 4]],
+            'ininterfaces': [None] * desc[0x1c // 4],
+            'outinterfaces': [None] * desc[0x20 // 4],
+            'inhandles': desc[0x4C / 4:0x4C / 4 + desc[0x24 // 4]],
+            'outhandles': desc[0x6C / 4:0x6C / 4 + desc[0x28 // 4]],
+            'buffers': desc[0x2c / 4:0x2c / 4 + desc[0x18 // 4]],
             'pid': desc[0] == 1,
 
             'lr': mu.reg_read(UC_ARM64_REG_LR),

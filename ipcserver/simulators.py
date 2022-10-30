@@ -7,29 +7,12 @@ from capstone import Cs, CS_ARCH_ARM64, CS_MODE_ARM
 from unicorn import UcError
 from unicorn.arm64_const import *
 
-from chunks import MemoryChunk, AllocatingChunk
-from tracers import IPCServerTrace
+from .chunks import MemoryChunk, AllocatingChunk
+from .tracers import IPCServerTrace
 from nxo64.compat import iter_range
-from unicornhelpers import create_unicorn_arm64, load_nxo_to_unicorn
+from common.unicornhelpers import create_unicorn_arm64, load_nxo_to_unicorn
 
 DEFAULT_LOAD_BASE = 0x7100000000
-
-UC_REG_BY_NAME = {
-    "x0": UC_ARM64_REG_X0,
-    "x1": UC_ARM64_REG_X1,
-    "x2": UC_ARM64_REG_X2,
-    "x3": UC_ARM64_REG_X3,
-    "x4": UC_ARM64_REG_X4,
-    "x5": UC_ARM64_REG_X5,
-    "x6": UC_ARM64_REG_X6,
-    "x7": UC_ARM64_REG_X7,
-    "x8": UC_ARM64_REG_X8,
-    "x9": UC_ARM64_REG_X9,
-    "x10": UC_ARM64_REG_X10,
-    "x23": UC_ARM64_REG_X23,
-    "x24": UC_ARM64_REG_X24,
-    "x25": UC_ARM64_REG_X25,
-}
 
 
 class Nx64Simulator(object):

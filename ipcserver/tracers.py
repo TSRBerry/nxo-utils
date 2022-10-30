@@ -2,6 +2,8 @@ import struct
 
 from unicorn.arm64_const import *
 
+from common.unicornhelpers import UC_REG_BY_NAME
+
 
 class BranchTracer(object):
     def __init__(self, simulator, cmd_id):

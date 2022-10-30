@@ -3,12 +3,12 @@ import re
 import bisect
 import hashlib
 
-from simulators import DEFAULT_LOAD_BASE, IPCServerSimulator
-from known_cmd_ids import all_known_command_ids 
+from ipcserver.simulators import DEFAULT_LOAD_BASE, IPCServerSimulator
+from common.known_cmd_ids import all_known_command_ids
 from nxo64.files import load_nxo
-from demangling import get_demangled
+from common.demangling import get_demangled
 
-from hashes import all_hashes, all_hashes_300
+from common.hashes import all_hashes, all_hashes_300
 
 '''
 TODO: try to turn into mangled symbols:
@@ -372,12 +372,13 @@ def dump_ipc_filename(fname):
         name = None
         msg = None
         ipc_info = None
+        possibles = None
         if i in ipcset:
             ipc_info = ipcset[i]
         if ipc_info is None:
             possibles = [x for x in ipc_infos if len(x['funcs']) == get_vt_size(traces)]
             if len(possibles) < 2:
-                possibles = filter(lambda x: len(x['funcs']) >= get_vt_size(traces), ipc_infos)
+                possibles = [x for x in ipc_infos if len(x['funcs']) >= get_vt_size(traces)]
         else:
             for i, trace in enumerate(traces):
                 if 'vt' in trace.description:
