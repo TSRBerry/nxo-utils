@@ -42,6 +42,19 @@ def get_demangled(s):
     return demangle_cache[s]
 
 
+def ipcclient_demangle(s):
+    value = get_demangled(s)
+    if '<nn::sf::cmif::client::CmifProxyFactory<' in value:
+        value = value.split('<nn::sf::cmif::client::CmifProxyFactory<')[1].split(', ')[0]
+    elif '<nn::sf::cmif::client::detail::CmifProxy<' in value:
+        value = value.split('<nn::sf::cmif::client::detail::CmifProxy<')[1].split(', ')[0]
+
+    if 'nn::sf::UnmanagedServiceObject<' in value:
+        value = value.split('nn::sf::UnmanagedServiceObject<')[1].split(', ')[0]
+
+    return value
+
+
 class Demangler(object):
     def __init__(self, name):
         print(name)

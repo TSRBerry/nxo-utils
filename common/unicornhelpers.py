@@ -6,6 +6,23 @@ from unicorn.arm64_const import *
 
 from nxo64.consts import R_AArch64
 
+UC_REG_BY_NAME = {
+    "x0": UC_ARM64_REG_X0,
+    "x1": UC_ARM64_REG_X1,
+    "x2": UC_ARM64_REG_X2,
+    "x3": UC_ARM64_REG_X3,
+    "x4": UC_ARM64_REG_X4,
+    "x5": UC_ARM64_REG_X5,
+    "x6": UC_ARM64_REG_X6,
+    "x7": UC_ARM64_REG_X7,
+    "x8": UC_ARM64_REG_X8,
+    "x9": UC_ARM64_REG_X9,
+    "x10": UC_ARM64_REG_X10,
+    "x23": UC_ARM64_REG_X23,
+    "x24": UC_ARM64_REG_X24,
+    "x25": UC_ARM64_REG_X25,
+}
+
 
 def load_nxo_to_unicorn(uc, f, loadbase):
     for sym in f.symbols:
@@ -16,7 +33,7 @@ def load_nxo_to_unicorn(uc, f, loadbase):
 
     resultw = BytesIO()
     f.binfile.seek(0)
-    resultw.write(f.binfile.read_to_end())
+    resultw.write(f.binfile.read())
 
     def write_qword(ea, val):
         resultw.seek(ea - loadbase)
