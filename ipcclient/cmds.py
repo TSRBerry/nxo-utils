@@ -44,7 +44,7 @@ def get_function_cmd_id_old(binstring, func_start, func_end, rostart, roend):
             if reg_name in constants:
                 loc = instr.operands[2].value.imm + constants[reg_name]
                 if rostart <= loc <= roend - 0x10:
-                    if binstring[loc:loc + 8] == 'SFCI\0\0\0\0':
+                    if binstring[loc:loc + 8].startswith(b'SFCI'):
                         return struct.unpack_from('<Q', binstring, loc + 8)[0]
                 if instr.reg_name(instr.operands[1].value.reg) == reg_name:
                     del constants[reg_name]

@@ -47,7 +47,7 @@ def iter_vtables_in_nxo(f):
 
     # print(hex(f.dataoff), f.dataoff < 0xCE7AA8)
     # print(struct.unpack_from('<q', binstring, 0xCE7AA8)[0])
-    for i in range(f.dataoff, len(binstring), 8):
+    for i in iter_range(f.dataoff, len(binstring), 8):
         value = struct.unpack_from('<q', binstring, i)[0]
         if value in (-0x10, -0x20):
             # if i == 0xCE7AA8:
