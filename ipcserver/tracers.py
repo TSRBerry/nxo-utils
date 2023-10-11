@@ -3,6 +3,7 @@ import struct
 from unicorn.arm64_const import *
 
 from common.unicornhelpers import UC_REG_BY_NAME
+from nxo64.compat import iter_range
 
 
 class BranchTracer(object):
@@ -16,7 +17,7 @@ class BranchTracer(object):
         self.range_top = 0xFFFFFFFF
         self.switch_top = None
         self.taint_offsets = {}
-        # print 'TRACING %d' % cmd_id
+        # print('TRACING %d' % cmd_id)
 
     def trace_instruction(self, uc, instruction, verbose=False):
         if self.stopped: return
@@ -31,12 +32,12 @@ class BranchTracer(object):
                 return
             if verbose: print('BranchTracer start')
             if verbose: print('0x%08x:    %s  %s' % (instruction.address, instruction.mnemonic, instruction.op_str))
-            # print '\t%X\t%X' % (uc.reg_read(UC_REG_BY_NAME[base]), self._simulator.message_ptr)
+            # print('\t%X\t%X' % (uc.reg_read(UC_REG_BY_NAME[base]), self._simulator.message_ptr))
 
             self.loaded_cmd_id = True
             self.taints.add(int(tainted[1:]))
             self.taint_offsets[int(tainted[1:])] = 0
-            # print self.taints
+            # print(self.taints)
             return
 
         parts = instruction.op_str.replace(',', ' ').replace('[', ' ').replace(']', ' ').split()
@@ -202,7 +203,7 @@ class IPCServerTrace(object):
 
     def trace_instruction(self, uc, instruction):
         i = instruction
-        # print '0x%08x:    %s  %s' % (instruction.address, instruction.mnemonic, instruction.op_str)
+        # print('0x%08x:    %s  %s' % (instruction.address, instruction.mnemonic, instruction.op_str))
         if i.mnemonic == 'cmp' and i.op_str.endswith(', x9') and len(self.description['ininterfaces']) == 1 and \
                 self.description['ininterfaces'][0] is None:
             assert i.op_str == 'x8, x9'  # oddly specific

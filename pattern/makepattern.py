@@ -55,7 +55,7 @@ def main(filenames):
 				pass
 
 			if len(positions) == 1: # probably good?
-				print '(0x%X, 0x%X, %r, %r),' % (sym.value, sym.size, regex, sym.name)
+				print('(0x%X, 0x%X, %r, %r),' % (sym.value, sym.size, regex, sym.name))
 
 
 if __name__ == '__main__':

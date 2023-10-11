@@ -64,7 +64,7 @@ def main(filenames):
 			line += '%3d ' % (as_int16(s.shndx),)
 			line += '%8x ' % (s.size,)
 			line += '%s' % (s.name,)
-			print line
+			print(line)
 
 if __name__ == '__main__':
     main(sys.argv[1:])

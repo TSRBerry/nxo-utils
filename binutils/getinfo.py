@@ -5,7 +5,7 @@ from nxo64 import load_nxo
 
 def main(filenames):
 	for filename in filenames:
-		print 'File:', filename
+		print('File:', filename)
 		with open(filename, 'rb') as li:
 			f = load_nxo(li)
 
@@ -28,21 +28,21 @@ def main(filenames):
 				path = strs[-1]
 
 		if path is not None:
-			print 'Module:', path
-		print '%d-bit' % (32 if f.armv7 else 64,)
+			print('Module:', path)
+		print('%d-bit' % (32 if f.armv7 else 64,))
 		sdk_version = re.findall(r'sdk_version: ([0-9.]*)', as_string)
 		if sdk_version:
-			print 'FS SDK Version:', sdk_version[0]
+			print('FS SDK Version:', sdk_version[0])
 
 		symbol_count = 0
 		for s in f.symbols:
 			if s.shndx and s.name:
 				symbol_count += 1
-		print 'Number of Symbols:', symbol_count
+		print('Number of Symbols:', symbol_count)
 
 		for i in re.findall(r'SDK MW[ -~]*', as_string):
-			print i
-		print
+			print(i)
+		print()
 
 if __name__ == '__main__':
 	main(sys.argv[1:])

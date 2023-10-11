@@ -13,7 +13,7 @@ def main(pattern, filename):
 
 		f.write('syms = [\n')
 		for value, size, regex, name in rows:
-			#print '(0x%X, 0x%X, %r, %r),' % (sym.value, sym.size, regex, sym.name)
+			# print('(0x%X, 0x%X, %r, %r),' % (sym.value, sym.size, regex, sym.name))
 			positions = [m.start() for m in re.finditer(regex, target_text)]
 			if len(positions) == 1:
 				f.write('(0x%X, %r),\n' % (0x7100000000 + positions[0], name))
@@ -27,15 +27,15 @@ for addr, sym in syms:
 	elif oldname.startswith('loc_'):
 		MakeName(addr, sym)
 		MakeComm(addr, 'name from regex match')
-		print '%X %s %s' % (addr, oldname, sym)
+		print('%X %s %s' % (addr, oldname, sym))
 	elif oldname != sym:
-		print '%X %s %s' % (addr, oldname, sym)
+		print('%X %s %s' % (addr, oldname, sym))
 ''')
 
 			
 if __name__ == '__main__':
 	if len(sys.argv) < 2:
-		print 'usage: applypattern.py pattern.txt [nxo files...]'
-		print 'writes output to input filename + "-sdk-syms.py"'
+		print('usage: applypattern.py pattern.txt [nxo files...]')
+		print('writes output to input filename + "-sdk-syms.py"')
 	for filename in sys.argv[2:]:
 		main(sys.argv[1], filename)

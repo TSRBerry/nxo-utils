@@ -25,8 +25,8 @@ def client_vtable(interface, vtstart, vtend, names):
 	if not vtoldname or vtoldname.startswith('off_'):
 		MakeName(vtstart, interface + '::vtable')
 
-	print 'struct %s;' % interface
-	print 'struct %s { /* %x-%x */' % (vtname, vtstart, vtend)
+	print('struct %s;' % interface)
+	print('struct %s { /* %x-%x */' % (vtname, vtstart, vtend))
 
 	for vtea, funcname in zip(range(vtstart, vtend, 8), names):
 		funcea = Qword(vtea)
@@ -54,17 +54,17 @@ def client_vtable(interface, vtstart, vtend, names):
 		functype = ret + '(*__fastcall ' + name + ')' + '(' + ','.join(args) + ')'
 
 		functype = functype.replace(', double a2, double a3, double a4, double a5, double a6, double a7, double a8, double a9', '')
-		print '  /* %X */ %s;' % (funcea, functype)
-	print '};'
-	print 'struct %s {' % interface
-	print '  %s *_v;' % vtname
-	print '  _BYTE byte8;'
-	print '  _BYTE byte9;'
-	print '  unsigned int handle;'
-	print '  void *_vt10;'
-	print '  _DWORD dword18;'
-	print '  _QWORD qword20;'
-	print '};'
+		print('  /* %X */ %s;' % (funcea, functype))
+	print('};')
+	print('struct %s {' % interface)
+	print('  %s *_v;' % vtname)
+	print('  _BYTE byte8;')
+	print('  _BYTE byte9;')
+	print('  unsigned int handle;')
+	print('  void *_vt10;')
+	print('  _DWORD dword18;')
+	print('  _QWORD qword20;')
+	print('};')
 
 ''')
     print('# decompile all process functions first')

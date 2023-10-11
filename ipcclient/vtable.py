@@ -51,7 +51,7 @@ def iter_vtables_in_nxo(f):
         value = struct.unpack_from('<q', binstring, i)[0]
         if value in (-0x10, -0x20):
             # if i == 0xCE7AA8:
-            #	print hex(i)
+            #	print(hex(i))
             end = i
             start = end
             while start - 8 in fptr_syms:
@@ -100,7 +100,7 @@ def dump_vtables(fname):
 
     # for name in  '_nn_sf_sync_'
     for vtable in iter_vtables_in_nxo(f):
-        # print '?'
+        # print('?')
         # continue
         print("  '%s': {" % vtable.interface)
         for entry in vtable.entries:

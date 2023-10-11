@@ -59,7 +59,7 @@ def get_function_cmd_id(binstring, func_start, plt_lookup, rostart, roend):
     md.detail = True
 
     func_end = find_ret(binstring, func_start) + 4
-    # print 'func_end: 0x%X' % func_end
+    # print('func_end: 0x%X' % func_end)
     calls = 0
     block_starts = set()
     block_starts.add(func_start)
@@ -80,7 +80,7 @@ def get_function_cmd_id(binstring, func_start, plt_lookup, rostart, roend):
         if cmd_id_old is not None:
             return cmd_id_old, None
 
-    # print block_starts
+    # print(block_starts)
     if len(block_starts) < 2 or len(block_starts) > 7:
         return None
 
@@ -104,7 +104,7 @@ def get_function_cmd_id(binstring, func_start, plt_lookup, rostart, roend):
     process_function = argsblock[-1].operands[0].value.imm
     process_function = plt_lookup.get(process_function, process_function)
     if not is_process_function(binstring, process_function):
-        # print 'not_process_function'
+        # print('not_process_function')
         return None
 
     # keep it simple by skipping all instructions that do not generate immediates
@@ -117,7 +117,7 @@ def get_function_cmd_id(binstring, func_start, plt_lookup, rostart, roend):
     # noinspection PyUnboundLocalVariable
     result = get_last_immediate_argument(block[pos:])
     # if result is None:
-    #	print block[pos:]
+    #	print(block[pos:])
 
     return result, process_function
 

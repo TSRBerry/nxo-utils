@@ -76,7 +76,7 @@ is_process_function_cache = {}
 
 
 def is_process_function(binstring, func_start):
-    # print hex(func_start)
+    # print(hex(func_start))
     if func_start in is_process_function_cache:
         return is_process_function_cache[func_start]
     md = Cs(CS_ARCH_ARM64, CS_MODE_ARM)
@@ -86,16 +86,16 @@ def is_process_function(binstring, func_start):
         instr = next(md.disasm(binstring[i:i + 4], i))
         while instr.mnemonic not in ('ret',):
             # if instr.mnemonic in ('movz', 'movk'):
-            #	print instr.mnemonic, repr(instr.op_str), instr.op_str.endswith(', #0x4653')
-            # print instr.mnemonic
+            #	print(instr.mnemonic, repr(instr.op_str), instr.op_str.endswith(', #0x4653'))
+            # print(instr.mnemonic)
             if instr.mnemonic in ('movz', 'movk') and instr.op_str.endswith(', #0x4943, lsl #16'):
                 counter += 1
-            # print '...'
+            # print('...')
             elif instr.mnemonic in ('movz', 'movk') and instr.op_str.endswith(', #0x4f43, lsl #16'):
-                # print '..'
+                # print('..')
                 counter += 1
             elif instr.mnemonic in ('movz', 'movk') and instr.op_str.endswith(', #0x4653'):
-                # print '.'
+                # print('.')
                 counter += 1
             i += 4
             instr = next(md.disasm(binstring[i:i + 4], i))
@@ -103,7 +103,7 @@ def is_process_function(binstring, func_start):
     except StopIteration:
         is_process_function_cache[func_start] = False
         return False
-    # print counter
+    # print(counter)
     is_process_function_cache[func_start] = (counter in (2, 4))
     return counter in (2, 4)
 

@@ -64,7 +64,7 @@ class BinFile(object):
         else:
             out = self._f.read(arg)
             #if isinstance(arg, (int,long)) and len(out) != arg:
-            #    print 'warning: read of %d bytes got %d bytes' % (arg, len(out))
+            #    print('warning: read of %d bytes got %d bytes' % (arg, len(out)))
             return out
 
     def read_to_end(self):
@@ -290,7 +290,7 @@ class NxoFileBase(object):
             self.dynstr = f.read(dynamic[DT_STRSZ])
         else:
             self.dynstr = '\0'
-            print 'warning: no dynstr'
+            print('warning: no dynstr')
 
         for startkey, szkey, name in [
             (DT_STRTAB, DT_STRSZ, '.dynstr'),
@@ -588,13 +588,13 @@ class NsoFile(NxoFileBase):
         if rloc >= len(full):
             full += '\0' * (rloc - len(full))
         else:
-            print 'truncating?'
+            print('truncating?')
             full = full[:rloc]
         full += ro
         if dloc >= len(full):
             full += '\0' * (dloc - len(full))
         else:
-            print 'truncating?'
+            print('truncating?')
             full = full[:dloc]
         full += data
 
@@ -626,7 +626,7 @@ def kip1_blz_decompress(compressed):
     if len(compressed) != compressed_size:
         # ugly hack, sorry
         #assert len(compressed) == compressed_size + 1
-        print 'not subtracting',  (len(compressed) - compressed_size)
+        print('not subtracting',  (len(compressed) - compressed_size))
         pass
         #init_index -= (len(compressed) - compressed_size)
     decompressed = compressed[:] + '\x00' * uncompressed_addl_size
@@ -696,13 +696,13 @@ class KipFile(NxoFileBase):
         if rloc >= len(full):
             full += '\0' * (rloc - len(full))
         else:
-            print 'truncating?'
+            print('truncating?')
             full = full[:rloc]
         full += ro
         if dloc >= len(full):
             full += '\0' * (dloc - len(full))
         else:
-            print 'truncating?'
+            print('truncating?')
             full = full[:dloc]
         full += data
 
@@ -885,9 +885,9 @@ else:
 
         eh_parse = idaapi.find_plugin('eh_parse', True)
         if eh_parse:
-            print 'eh_parse ->', idaapi.run_plugin(eh_parse, 0)
+            print('eh_parse ->', idaapi.run_plugin(eh_parse, 0))
         else:
-            print 'warning: eh_parse missing'
+            print('warning: eh_parse missing')
 
         return ret
 
@@ -1002,14 +1002,14 @@ else:
             offset_addend = 0
             if r_type in (R_ARM_GLOB_DAT, R_ARM_JUMP_SLOT, R_ARM_ABS32):
                 if not sym:
-                    print 'error: relocation at %X failed' % target
+                    print('error: relocation at %X failed' % target)
                 else:
                     idaapi.put_long(target, sym.resolved)
             elif r_type == R_ARM_RELATIVE:
                 idaapi.put_long(target, idaapi.get_long(target) + loadbase)
             elif r_type in (R_AARCH64_GLOB_DAT, R_AARCH64_JUMP_SLOT, R_AARCH64_ABS64):
                 if not sym.shndx and sym.name and addend != 0:
-                    print 'RELOC ERROR: %x %r + 0x%x' % (target, sym.name, addend)
+                    print('RELOC ERROR: %x %r + 0x%x' % (target, sym.name, addend))
                 idaapi.put_qword(target, sym.resolved + addend)
                 offset_addend = addend
                 if addend == 0:
@@ -1019,7 +1019,7 @@ else:
                 if addend < f.textsize:
                     funcs.add(loadbase + addend)
             else:
-                print 'TODO r_type %d' % (r_type,)
+                print('TODO r_type %d' % (r_type,))
             ida_make_offset(f, target, offset_addend)
 
         for func, target in f.plt_entries:
@@ -1092,7 +1092,7 @@ else:
         '''
 
         if bypass_plt and not f.armv7:
-            print 'guessing types...'
+            print('guessing types...')
             guessed_type_count = 0
             for off, typestr in guess_types_for_nxo(f):
                 decl = idc.parse_decl(typestr, idc.PT_SILENT)
@@ -1100,8 +1100,8 @@ else:
                     idc.apply_type(loadbase + off, decl, idc.TINFO_GUESSED | idc.TINFO_DELAYFUNC)
                     guessed_type_count += 1
                 else:
-                    print 'bad: %x %r' % (loadbase + off, typestr)
-            print 'guessed %d types' % guessed_type_count
+                    print('bad: %x %r' % (loadbase + off, typestr))
+            print('guessed %d types' % guessed_type_count)
 
         
         return 1
@@ -1115,12 +1115,12 @@ else:
 
     def make_noret(ea):
         if is_func(ea):
-            #print 'make_noret(0x%x)' % ea
+            # print('make_noret(0x%x)' % ea)
             idc.set_func_flags(ea, idc.get_func_flags(ea) | idc.FUNC_NORET)
             idaapi.reanalyze_callers(ea, 1)
             return True
         else:
-            #print 'make_noret(0x%x): not a function' % ea
+            # print('make_noret(0x%x): not a function' % ea)
             return False
 
     def on_load():
@@ -1135,7 +1135,7 @@ else:
         idc.auto_wait()
         for i in next_list:
             make_noret(i)
-            #print hex(i), is_func(i)
+            # print(hex(i), is_func(i))
 
     def wait_for_analysis():
         if idaapi.auto_is_ok():
@@ -1891,7 +1891,7 @@ else:
                 # discard qualifiers
                 return type_to_ida_string(t.value)
             else:
-                print 'TODO', t.kind
+                print('TODO', t.kind)
                 #return '?'
                 return '__int64'
 

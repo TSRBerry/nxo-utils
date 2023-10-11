@@ -8,7 +8,7 @@ from capstone import *
 import nxo64
 from ipcclient import iter_vtables_in_nxo, demangle
 
-from unicornhelpers import load_nxo_to_unicorn, create_unicorn_arm64
+from common.unicornhelpers import load_nxo_to_unicorn, create_unicorn_arm64
 
 class Simulator(object):
     def __init__(self, f, verbose=False):
@@ -85,14 +85,14 @@ class Simulator(object):
             uc.hook_add(UC_HOOK_MEM_WRITE, self.hook_mem_write)
 
     def hook_mem_read(self, uc, e, addr, sz, *args):
-        #print 'hook_mem_read:', hex(addr), sz
+        # print('hook_mem_read:', hex(addr), sz)
         if self.arg_scratch <= addr < self.arg_scratch + self.arg_scratch_size:
-            print 'read from arg:', ((addr - self.arg_scratch) / 0x1000) + 1, '@ + 0x%X-0x%X' % (addr & 0xFFF, (addr & 0xFFF) + sz)
+            print('read from arg:', ((addr - self.arg_scratch) / 0x1000) + 1, '@ + 0x%X-0x%X' % (addr & 0xFFF, (addr & 0xFFF) + sz))
 
     def hook_mem_write(self, uc, e, addr, sz, *args):
-        #print 'hook_mem_read:', hex(addr), sz
+        # print('hook_mem_read:', hex(addr), sz)
         if self.arg_scratch <= addr < self.arg_scratch + self.arg_scratch_size:
-            print 'write to arg:', ((addr - self.arg_scratch) / 0x1000) + 1, '@ + 0x%X-0x%X' % (addr & 0xFFF, (addr & 0xFFF) + sz)
+            print('write to arg:', ((addr - self.arg_scratch) / 0x1000) + 1, '@ + 0x%X-0x%X' % (addr & 0xFFF, (addr & 0xFFF) + sz))
 
 
     def dump_regs(self, uc):
@@ -103,13 +103,13 @@ class Simulator(object):
         values.append(('X30', uc.reg_read(UC_ARM64_REG_X30)))
         values.append(('SP', uc.reg_read(UC_ARM64_REG_SP)))
         values.append(('PC', uc.reg_read(UC_ARM64_REG_PC)))
-        print '', ', '.join('%s=%X' % i for i in values)
+        print('', ', '.join('%s=%X' % i for i in values))
 
     def dump_state(self, uc, pc):
         md = Cs(CS_ARCH_ARM64, CS_MODE_ARM)
         i = md.disasm(str(uc.mem_read(pc, 4)), pc).next()
-        print " " + "_" * 80
-        print " instruction @ 0x%X: %7s %s" % (pc, i.mnemonic, i.op_str)
+        print(" " + "_" * 80)
+        print(" instruction @ 0x%X: %7s %s" % (pc, i.mnemonic, i.op_str))
         self.dump_regs(uc)
 
     def hook_code(self, uc, address, size, user_data):
@@ -142,7 +142,7 @@ class Simulator(object):
             size = uc.reg_read(size_reg)
             out = self.heap_ptr
             self.heap_ptr += (size + 0xF) & ~0xF
-            #print ' malloc hook (0x%X) -> 0x%X' % (size, out)
+            # print(' malloc hook (0x%X) -> 0x%X' % (size, out))
             uc.reg_write(UC_ARM64_REG_X0, out)
             uc.reg_write(UC_ARM64_REG_PC, uc.reg_read(UC_ARM64_REG_X30))
         if address in self.skip_funcs:
@@ -150,23 +150,23 @@ class Simulator(object):
 
     def check_bl_for_bad_mutex(self, uc):
         if uc.reg_read(UC_ARM64_REG_X0) == 0x200003008:
-            #print 'SKIPPING MUTEX'
+            # print('SKIPPING MUTEX')
             uc.reg_write(UC_ARM64_REG_PC, uc.reg_read(UC_ARM64_REG_PC) + 4)
 
 
     def check_bl_for_malloc(self, uc):
         self.bl_count += 1
         if self.verbose:
-            print 'BL COUNT ', self.bl_count, uc.reg_read(UC_ARM64_REG_X0), uc.reg_read(UC_ARM64_REG_X1)
+            print('BL COUNT ', self.bl_count, uc.reg_read(UC_ARM64_REG_X0), uc.reg_read(UC_ARM64_REG_X1))
         if self.bl_count == 2 and uc.reg_read(UC_ARM64_REG_X0) in (0x20, 0x30, 0x38):
-            #print 'MATCHED MALLOC'
+            # print('MATCHED MALLOC')
             size = uc.reg_read(UC_ARM64_REG_X0)
             out = self.heap_ptr
             self.heap_ptr += (size + 0xF) & ~0xF
             uc.reg_write(UC_ARM64_REG_X0, out)
             uc.reg_write(UC_ARM64_REG_PC, uc.reg_read(UC_ARM64_REG_PC) + 4)
         elif self.bl_count == 4 and uc.reg_read(UC_ARM64_REG_X1) in (0x20, 0x30, 0x38) and uc.reg_read(UC_ARM64_REG_X0) in (0, 0x200004000):
-            #print 'MATCHED AllocateFromExpHeap'
+            # print('MATCHED AllocateFromExpHeap')
             size = uc.reg_read(UC_ARM64_REG_X1)
             out = self.heap_ptr
             self.heap_ptr += (size + 0xF) & ~0xF
@@ -232,7 +232,7 @@ class Simulator(object):
         try:
             self.uc.emu_start(self.loadbase + func, 0)
         except UcError as e:
-            print 'TODO: UcError (around 0x%X): %s' %  (self.uc.reg_read(UC_ARM64_REG_PC), e)
+            print('TODO: UcError (around 0x%X): %s' %  (self.uc.reg_read(UC_ARM64_REG_PC), e))
 
     def call(self, func, arg0):
         assert self.current_run is None
@@ -284,17 +284,17 @@ def sim_filename(fname):
 
         display = False # 'IUnknown_' in vtable.interface
         if display:
-            print
-            print vtable.interface
-            print '=' * len(vtable.interface)
+            print()
+            print(vtable.interface)
+            print('=' * len(vtable.interface))
         else:
             pass
-            print vtable.interface
+            print(vtable.interface)
         
         hash_code = ''
         prior_rets = {}
         for entry in vtable.entries:
-            #print '%r (%x)' % (entry.cmd, 0x7100000000+ entry.funcptr)
+            # print('%r (%x)' % (entry.cmd, 0x7100000000+ entry.funcptr))
             if entry.cmd is None: continue
 
             run_data = sim.call(entry.funcptr, sim.mem)
@@ -305,7 +305,7 @@ def sim_filename(fname):
                 for addr in range(sim.arg_scratch, sim.arg_scratch + sim.arg_scratch_size - 0x1000, 0x1000):
                     val = sim.qword(addr)
                     if val != addr + 0x800:
-                        print 'value in arg', ((addr - sim.arg_scratch) / 0x1000) + 1, hex(val)
+                        print('value in arg', ((addr - sim.arg_scratch) / 0x1000) + 1, hex(val))
 
             parts = []
 
@@ -319,7 +319,7 @@ def sim_filename(fname):
             assert ipcbuf.count('SFCI') == 1
 
             w0, w1 = struct.unpack_from('<II', ipcbuf, 0)
-            #print hex(w0)
+            # print(hex(w0))
             assert (w0 & 0xFFFF) in (4, 6)
             x_count = (w0 >> 16) & 0xF
             a_count = (w0 >> 20) & 0xF
@@ -341,9 +341,9 @@ def sim_filename(fname):
                 if has_pid:
                     header_words += 2
                     parts.append('send pid')
-                    #print ' has pid'
+                    # print(' has pid')
                 if copy_count: parts.append('%d copied handles in' % copy_count)
-                if move_count: parts.append('%d moved handles in' % move_count) # print ' move_count', move_count
+                if move_count: parts.append('%d moved handles in' % move_count) # print(' move_count', move_count)
                 header_words += copy_count + move_count
 
             header_words += x_count * 2 + a_count * 3 + b_count * 3
@@ -357,7 +357,7 @@ def sim_filename(fname):
                 in_objects = struct.unpack_from('B', data, 1)[0]
                 if in_objects:
                     parts.append('%d in objects' % in_objects)
-                    #print ' in_objects:', in_objects
+                    # print(' in_objects:', in_objects)
                 in_size_exact = struct.unpack_from('H', data, 2)[0]
                 in_size = in_size_exact - 0x10
                 parts.append('%s bytes in' % pretty_hex(in_size))
@@ -369,7 +369,7 @@ def sim_filename(fname):
                     parts.append('~%s bytes in' % pretty_hex(in_size))
 
             if entry.cmd != struct.unpack_from('<Q', data, data.index('SFCI') + 8)[0]:
-                print 'bad', entry.cmd, struct.unpack_from('<Q', data, data.index('SFCI') + 8)[0], hex(entry.funcptr)
+                print('bad', entry.cmd, struct.unpack_from('<Q', data, data.index('SFCI') + 8)[0], hex(entry.funcptr))
                 entry.cmd = struct.unpack_from('<Q', data, data.index('SFCI') + 8)[0]
 
             out_obj = struct.unpack('<Q', sim.uc.mem_read(sim.heap, 8))[0]
@@ -402,7 +402,7 @@ def sim_filename(fname):
             row += ' || '
 
             if display:
-                print row + ' - '.join(parts) + ' ||'
+                print(row + ' - '.join(parts) + ' ||')
 
             hash_code += '%d(%d%s' % (entry.cmd, (in_size+3)/4, suffix)
             if buffers:
@@ -413,15 +413,15 @@ def sim_filename(fname):
 
             hashed = hashlib.sha224(hash_code).hexdigest()[:16]
 
-            #print hashed, repr(hash_code)
+            # print(hashed, repr(hash_code))
             if 'IUnknown_' not in vtable.interface:
                 if vtable.interface not in all_hashes.get(hashed, []):
                     all_hashes.setdefault(hashed, []).append(vtable.interface)
-    #print all_hashes
+    # print(all_hashes)
 
 def main():
     for i in sys.argv[1:]:
-        print 'doing %r...' % (i,)
+        print('doing %r...' % (i,))
         sim_filename(i)
     with open('hashes_gen.py', 'w') as f:
         f.write('all_hashes = %r\n' % all_hashes)

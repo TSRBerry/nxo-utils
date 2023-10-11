@@ -10,7 +10,7 @@ def main(filenames):
 			with open(filename, 'rb') as li:
 				f = load_nxo(li)
 		except Exception as e:
-			print filename, e
+			print(filename, e)
 			continue
 		if SEARCH_ALL_SECTIONS:
 			f.binfile.seek(0)
@@ -21,7 +21,7 @@ def main(filenames):
 		strs = re.finditer(r'[ -~]{5,}', as_string)
 		for i in strs:
 			start = i.start() + f.rodataoff + 0x7100000000
-			print '%s(%X): %s' % (filename, start, i.group(0))
+			print('%s(%X): %s' % (filename, start, i.group(0)))
 
 if __name__ == '__main__':
     main(sys.argv[1:])

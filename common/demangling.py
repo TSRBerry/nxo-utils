@@ -29,7 +29,7 @@ def get_demangled(s):
     if s not in demangle_cache:
         # python_result = itanium_demangle(s)
         # if python_result is None:
-        #	#print 'demangler failed:', repr(s)
+        #	# print('demangler failed:', repr(s))
         #	python_result = s
         demangle_cache[s] = subprocess.check_output(['c++filt', '-n', s]).decode().strip()
     # if CHECK_CXX_FILT:
@@ -117,7 +117,7 @@ class Demangler(object):
     def parse_literal(self):
         assert self.getchar() == 'L'
         kind = self.parse()
-        # print 'TODO in parse_back_ref: %r (%r)' % (self.peek(), self.name[self.pos:])
+        # print('TODO in parse_back_ref: %r (%r)' % (self.peek(), self.name[self.pos:]))
         value = self.read_string_length()
         assert self.getchar() == 'E'
         return '(%s)%d' % (kind, value)

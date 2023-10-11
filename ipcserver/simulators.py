@@ -7,17 +7,16 @@ from capstone import Cs, CS_ARCH_ARM64, CS_MODE_ARM
 from unicorn import UcError
 from unicorn.arm64_const import *
 
+from common import BASE_ADDRESS
 from .chunks import MemoryChunk, AllocatingChunk
 from .tracers import IPCServerTrace
 from nxo64.compat import iter_range
 from common.unicornhelpers import create_unicorn_arm64, load_nxo_to_unicorn
 
-DEFAULT_LOAD_BASE = 0x7100000000
-
 
 class Nx64Simulator(object):
     def __init__(self, nxo, stack_size=0x2000, host_heap_size=0x100000, runtime_heap_size=0x2000,
-                 loadbase=DEFAULT_LOAD_BASE, trace_instructions=False):
+                 loadbase=BASE_ADDRESS, trace_instructions=False):
         self.uc = create_unicorn_arm64()
         self.cs = Cs(CS_ARCH_ARM64, CS_MODE_ARM)
         self.loadbase = loadbase
@@ -46,7 +45,7 @@ class Nx64Simulator(object):
         self.trace_instruction_hooks = []
 
     def on_return_hook_function(self, uc):
-        # print 'on_return_hook_function'
+        # print('on_return_hook_function')
         return False
 
     def create_trace_function_pointer(self, func):
@@ -73,7 +72,7 @@ class Nx64Simulator(object):
 
     def dump_regs(self):
         values = []
-        for i in range(28):
+        for i in iter_range(28):
             values.append(('X%d' % i, self.uc.reg_read(UC_ARM64_REG_X0 + i)))
         values.append(('X29', self.uc.reg_read(UC_ARM64_REG_X29)))
         values.append(('X30', self.uc.reg_read(UC_ARM64_REG_X30)))
@@ -159,7 +158,7 @@ class Nx64Simulator(object):
                 except UcError as e:
                     pc = self.uc.reg_read(UC_ARM64_REG_PC)
                     if pc in self._hook_functions:
-                        # print 'hook function for %X' % (pc,)
+                        # print('hook function for %X' % (pc,))
                         if self._hook_functions[pc](self.uc):
                             continue
                         else:
@@ -239,12 +238,12 @@ class IPCServerSimulator(Nx64Simulator):
         trace = self.try_trace_cmd(dispatch_func, cmd_id, struct.pack('<QQQQQQ', 0, 0, 0, 0, 0, 0))
         if trace.is_correct():
             return trace
-        # print 'retry'
+        # print('retry')
         trace = self.try_trace_cmd(dispatch_func, cmd_id, struct.pack('<QQQQQQ', 1, 1, 1, 1, 1, 1))
         if trace.is_correct():
             return trace
         for buffer_size in (128, 33):
-            # print 'retry'
+            # print('retry')
             trace = self.try_trace_cmd(dispatch_func, cmd_id, struct.pack('<QQQQ', 0, 0, 0, 0), buffer_size=buffer_size)
             if trace.is_correct():
                 return trace

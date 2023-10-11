@@ -3,7 +3,8 @@ import re
 import bisect
 import hashlib
 
-from ipcserver.simulators import DEFAULT_LOAD_BASE, IPCServerSimulator
+from common import BASE_ADDRESS
+from ipcserver.simulators import IPCServerSimulator
 from common.known_cmd_ids import ALL_KNOWN_COMMAND_IDS
 from nxo64.files import load_nxo
 from common.demangling import get_demangled
@@ -119,48 +120,48 @@ def get_bracketed(msg):
 
 def get_interface_name(intf_name):
     demangled_interface_name = demangle(intf_name)
-    # print demangled_interface_name
+    # print(demangled_interface_name)
     if demangled_interface_name.startswith(
-            b'nn::sf::detail::ObjectImplFactoryWithStatelessAllocator<nn::sf::impl::detail::ImplTemplateBase<'):
+            'nn::sf::detail::ObjectImplFactoryWithStatelessAllocator<nn::sf::impl::detail::ImplTemplateBase<'):
         vtname = demangled_interface_name[
-                 len(b'nn::sf::detail::ObjectImplFactoryWithStatelessAllocator<nn::sf::impl::detail::ImplTemplateBase<'):]
+                 len('nn::sf::detail::ObjectImplFactoryWithStatelessAllocator<nn::sf::impl::detail::ImplTemplateBase<'):]
         vtname = vtname[:vtname.index(',')]
         return vtname
     elif demangled_interface_name.startswith(
-            b'nn::sf::detail::ObjectImplFactoryWithStatefulAllocator<nn::sf::impl::detail::ImplTemplateBase<'):
+            'nn::sf::detail::ObjectImplFactoryWithStatefulAllocator<nn::sf::impl::detail::ImplTemplateBase<'):
         vtname = demangled_interface_name[
-                 len(b'nn::sf::detail::ObjectImplFactoryWithStatefulAllocator<nn::sf::impl::detail::ImplTemplateBase<'):]
+                 len('nn::sf::detail::ObjectImplFactoryWithStatefulAllocator<nn::sf::impl::detail::ImplTemplateBase<'):]
         vtname = vtname[:vtname.index(',')]
         return vtname
-    elif demangled_interface_name.startswith(b'nn::sf::UnmanagedServiceObject<'):
-        return get_bracketed(demangled_interface_name[len(b'nn::sf::UnmanagedServiceObject<'):])
+    elif demangled_interface_name.startswith('nn::sf::UnmanagedServiceObject<'):
+        return get_bracketed(demangled_interface_name[len('nn::sf::UnmanagedServiceObject<'):])
     else:
         return demangled_interface_name
 
 
 def get_interface_msg(intf_name):
     demangled_interface_name = demangle(intf_name)
-    if b'nn::sf::detail::UnmanagedPointerHolder<' in demangled_interface_name:
-        msg = demangled_interface_name[demangled_interface_name.index(b'nn::sf::detail::UnmanagedPointerHolder<') + len(
-            b'nn::sf::detail::UnmanagedPointerHolder<'):]
-        return b'IpcPtrObj_' + get_bracketed(msg)
-    if b'nn::sf::detail::UnmanagedServiceObject<' in demangled_interface_name:
-        msg = demangled_interface_name[demangled_interface_name.index(b'nn::sf::detail::UnmanagedServiceObject<') + len(
-            b'nn::sf::detail::UnmanagedServiceObject<'):]
-        return b'IpcService_' + get_bracketed(msg)
-    if b'nn::sf::UnmanagedServiceObject<' in demangled_interface_name:
-        msg = demangled_interface_name[demangled_interface_name.index(b'nn::sf::UnmanagedServiceObject<') + len(
-            b'nn::sf::UnmanagedServiceObject<'):]
-        return b'IpcService_' + get_bracketed(msg)
-    elif b'nn::sf::detail::EmplacedImplHolder<' in demangled_interface_name:
-        msg = demangled_interface_name[demangled_interface_name.index(b'nn::sf::detail::EmplacedImplHolder<') + len(
-            b'nn::sf::detail::EmplacedImplHolder<'):]
-        return b'IpcObj_' + get_bracketed(msg)
-    elif b'nn::sf::detail::StdSmartPtrHolder<std::__1::unique_ptr<' in demangled_interface_name:
+    if 'nn::sf::detail::UnmanagedPointerHolder<' in demangled_interface_name:
+        msg = demangled_interface_name[demangled_interface_name.index('nn::sf::detail::UnmanagedPointerHolder<') + len(
+            'nn::sf::detail::UnmanagedPointerHolder<'):]
+        return 'IpcPtrObj_' + get_bracketed(msg)
+    if 'nn::sf::detail::UnmanagedServiceObject<' in demangled_interface_name:
+        msg = demangled_interface_name[demangled_interface_name.index('nn::sf::detail::UnmanagedServiceObject<') + len(
+            'nn::sf::detail::UnmanagedServiceObject<'):]
+        return 'IpcService_' + get_bracketed(msg)
+    if 'nn::sf::UnmanagedServiceObject<' in demangled_interface_name:
+        msg = demangled_interface_name[demangled_interface_name.index('nn::sf::UnmanagedServiceObject<') + len(
+            'nn::sf::UnmanagedServiceObject<'):]
+        return 'IpcService_' + get_bracketed(msg)
+    elif 'nn::sf::detail::EmplacedImplHolder<' in demangled_interface_name:
+        msg = demangled_interface_name[demangled_interface_name.index('nn::sf::detail::EmplacedImplHolder<') + len(
+            'nn::sf::detail::EmplacedImplHolder<'):]
+        return 'IpcObj_' + get_bracketed(msg)
+    elif 'nn::sf::detail::StdSmartPtrHolder<std::__1::unique_ptr<' in demangled_interface_name:
         msg = demangled_interface_name[
-              demangled_interface_name.index(b'nn::sf::detail::StdSmartPtrHolder<std::__1::unique_ptr<') + len(
-                  b'nn::sf::detail::StdSmartPtrHolder<std::__1::unique_ptr<'):]
-        return b'IpcService' + get_bracketed(msg)
+              demangled_interface_name.index('nn::sf::detail::StdSmartPtrHolder<std::__1::unique_ptr<') + len(
+                  'nn::sf::detail::StdSmartPtrHolder<std::__1::unique_ptr<'):]
+        return 'IpcService' + get_bracketed(msg)
     return None
 
 
@@ -235,15 +236,15 @@ def dump_ipc_filename(fname):
     for offset in got_data_syms:
         vt_ofs = got_data_syms[offset]
         if f.dataoff <= vt_ofs <= f.dataoff + f.datasize:
-            rtti_ofs = simulator.qword(DEFAULT_LOAD_BASE + vt_ofs + 8) - DEFAULT_LOAD_BASE
+            rtti_ofs = simulator.qword(BASE_ADDRESS + vt_ofs + 8) - BASE_ADDRESS
             if f.dataoff <= rtti_ofs <= f.dataoff + f.datasize:
-                this_ofs = simulator.qword(DEFAULT_LOAD_BASE + rtti_ofs + 8) - DEFAULT_LOAD_BASE
+                this_ofs = simulator.qword(BASE_ADDRESS + rtti_ofs + 8) - BASE_ADDRESS
                 if f.rodataoff <= this_ofs <= f.rodataoff + f.rodatasize:
                     sym = f.binfile.read_from('512s', this_ofs)
                     if b'\x00' in sym:
                         sym = sym[:sym.index(b'\x00')]
                         if b'UnmanagedServiceObject' in sym or sym in [
-                            b'N2nn2sf4cmif6server23CmifServerDomainManager6DomainE']:
+                                b'N2nn2sf4cmif6server23CmifServerDomainManager6DomainE']:
                             vt_infos[sym] = vt_ofs
     # Locate a known IPC vtable
     known_func = None
@@ -257,14 +258,14 @@ def dump_ipc_filename(fname):
     ipc_vts = {}
     for offset in got_data_syms:
         vt_ofs = got_data_syms[offset]
-        vt_base = vt_ofs + DEFAULT_LOAD_BASE
+        vt_base = vt_ofs + BASE_ADDRESS
         if f.dataoff <= vt_ofs <= f.dataoff + f.datasize:
             if simulator.qword(vt_base + 0x20) == known_func:
                 vt = []
                 ofs = 0x30
                 while simulator.qword(vt_base + ofs) != 0:
                     func = simulator.qword(vt_base + ofs)
-                    func_ofs = func - DEFAULT_LOAD_BASE
+                    func_ofs = func - BASE_ADDRESS
                     if f.textoff <= func_ofs <= f.textoff + f.textsize:
                         vt += [func]
                         ofs += 8
@@ -280,9 +281,9 @@ def dump_ipc_filename(fname):
         ipc_info = {'base': vt_base + 0x10, 'funcs': ipc_vts[vt_base]}
         rtti_base = simulator.qword(vt_base + 8)
         if rtti_base != 0:
-            rtti_ofs = rtti_base - DEFAULT_LOAD_BASE
+            rtti_ofs = rtti_base - BASE_ADDRESS
             assert f.dataoff <= rtti_ofs <= f.dataoff + f.datasize
-            this_ofs = simulator.qword(DEFAULT_LOAD_BASE + rtti_ofs + 8) - DEFAULT_LOAD_BASE
+            this_ofs = simulator.qword(BASE_ADDRESS + rtti_ofs + 8) - BASE_ADDRESS
             if f.rodataoff <= this_ofs <= f.rodataoff + f.rodatasize:
                 sym = f.binfile.read_from('512s', this_ofs)
                 if b'\x00' in sym:
@@ -297,8 +298,8 @@ def dump_ipc_filename(fname):
         stables = []
         for sym in f.symbols:
             if 's_Table' in sym.name:
-                print(demangle(sym.name))
-                stables.append((sym.name, DEFAULT_LOAD_BASE + sym.value))
+                # print(demangle(sym.name))
+                stables.append((sym.name, BASE_ADDRESS + sym.value))
 
         for stable_name, addr in stables:
             stable_name = demangle(stable_name)
@@ -332,7 +333,8 @@ def dump_ipc_filename(fname):
             re.escape(chr(0x20 | i).encode() + b'\x00\xA0\x52' + chr(0x40 | i).encode() + b'\xC1\x94\x72') for i in
             range(29))
         for i in re.finditer(regex, text_string):
-            if i.start() & 3: continue
+            if i.start() & 3:
+                continue
             idx = bisect.bisect(candidates, (i.start(), 0))
             process_function, s_table = candidates[idx - 1]
             if text_string.index(b'\xC0\x03\x5F\xD6', process_function) > i.start():
@@ -347,7 +349,8 @@ def dump_ipc_filename(fname):
                 re.escape(chr(0x60 | i).encode() + b'\xCA\x88\x52' + chr(0x60 | i).encode() + b'\x28\xA9\x72') for i in
                 range(29))
             for i in re.finditer(regex, text_string):
-                if i.start() & 3: continue
+                if i.start() & 3:
+                    continue
                 idx = bisect.bisect(candidates, (i.start(), 0))
                 process_function, s_table = candidates[idx - 1]
                 if text_string.index(b'\xC0\x03\x5F\xD6', process_function) > i.start():
@@ -366,7 +369,7 @@ def dump_ipc_filename(fname):
 
     ipcset, ipc_infos = try_match(traceset, ipc_infos)
 
-    # print ipcset
+    # print(ipcset)
     for i, traces in enumerate(traceset):
         process_function = process_functions[i]
         name = None
@@ -451,9 +454,9 @@ def dump_ipc_filename(fname):
 
         print('  },')
         # if PUBLIC:
-        #    print '  },'
+        #    print('  },')
         # else:
-        #    print '  }, # ' + msg
+        #    print('  }, # ' + msg)
 
     print('},')
 
