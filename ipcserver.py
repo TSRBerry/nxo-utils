@@ -7,6 +7,7 @@ import hashlib
 from common import BASE_ADDRESS
 from ipcserver.simulators import IPCServerSimulator
 from common.known_cmd_ids import ALL_KNOWN_COMMAND_IDS
+from nxo64.consts import R_FAKE_RELR
 from nxo64.files import load_nxo
 from common.demangling import get_demangled
 
@@ -301,6 +302,8 @@ def dump_ipc_filename(fname):
     for offset, r_type, sym, addend in f.relocations:
         if offset < got[0] or got[1] < offset:
             continue
+        if r_type == R_FAKE_RELR:
+            addend = simulator.qword(BASE_ADDRESS + offset) - BASE_ADDRESS
         if f.dataoff <= offset < f.dataoff + f.datasize:
             if sym and sym.shndx and sym.value < f.textsize:
                 fptr_syms[offset] = sym.value
@@ -395,6 +398,9 @@ def dump_ipc_filename(fname):
         candidates = []
         for offset, r_type, sym, addend in f.relocations:
             if addend:
+                candidates.append((addend, offset))
+            elif r_type == R_FAKE_RELR:
+                addend = simulator.qword(BASE_ADDRESS + offset) - BASE_ADDRESS
                 candidates.append((addend, offset))
         candidates.sort()
 

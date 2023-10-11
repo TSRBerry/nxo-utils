@@ -4,7 +4,7 @@ from io import BytesIO
 from unicorn import *
 from unicorn.arm64_const import *
 
-from nxo64.consts import R_AArch64
+from nxo64.consts import R_AArch64, R_FAKE_RELR
 
 UC_REG_BY_NAME = {
     "x0": UC_ARM64_REG_X0,
@@ -35,6 +35,10 @@ def load_nxo_to_unicorn(uc, f, loadbase):
     f.binfile.seek(0)
     resultw.write(f.binfile.read())
 
+    def read_qword(ea):
+        resultw.seek(ea - loadbase)
+        return struct.unpack('<Q', resultw.read(8))[0]
+
     def write_qword(ea, val):
         resultw.seek(ea - loadbase)
         resultw.write(struct.pack('<Q', val))
@@ -58,6 +62,10 @@ def load_nxo_to_unicorn(uc, f, loadbase):
                 # assert sym.shndx # huge mess if we do this on an extern
                 newval += addend
             write_qword(ea, newval)
+        elif r_type == R_FAKE_RELR:
+            assert not f.armv7  # TODO
+            addend = read_qword(ea)
+            write_qword(ea, addend + loadbase)
         else:
             print('TODO: r_type=0x%x sym=%r ea=%X addend=%X' % (r_type, sym, ea, addend))
             continue
