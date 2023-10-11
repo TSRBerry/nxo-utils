@@ -1,3 +1,4 @@
+import struct
 import sys
 import re
 import bisect
@@ -10,6 +11,8 @@ from nxo64.files import load_nxo
 from common.demangling import get_demangled
 
 from common.hashes import all_hashes, all_hashes_300
+from common.known_interface_ids import known_interface_map
+from nxo64.compat import get_ord
 
 '''
 TODO: try to turn into mangled symbols:
@@ -204,6 +207,83 @@ def try_match(trace_set, ipc_infos):
     return ipcset, ipc_infos
 
 
+def get_interface_id(process_function_string):
+    # 14.x: autodetect interface id via SFCO + ID constant used in the template of s_Table
+    #   MOV  W?, #0x4653
+    #   MOVK W?, #0x4F43, LSL#16
+    #   STR X?, [X?]
+    #   MOV W?, #?
+    #   MOVK W?, #?,LSL#16
+    #   STP  W?, W?, [X?, #8]
+    regex = b'|'.join(
+        re.escape(chr(0x60 | i).encode() + b'\xCA\x88\x52' + chr(0x60 | i).encode() + b'\xE8\xA9\x72')
+        for i in range(29)
+    )
+    sfco_const = re.findall(regex, process_function_string)
+    if len(sfco_const) == 0:
+        return 0
+    process_function_string = process_function_string[:process_function_string.index(
+        b'\xC0\x03\x5F\xD6', process_function_string.index(sfco_const[0])
+    )]
+    sfco_const = re.findall(regex, process_function_string)
+    if len(sfco_const) != 1:
+        return 0
+    process_function_string = process_function_string[process_function_string.index(sfco_const[0]):]
+    sfco_reg = get_ord(process_function_string[0]) & 0x1F
+    process_function_string = process_function_string[8:]
+    msg_buf_reg = None
+    for i in range(29):
+        store_to_buffer_x = struct.pack('<I', 0xF9000000 | sfco_reg | (i << 5))
+        store_to_buffer_w = struct.pack('<I', 0xB9000000 | sfco_reg | (i << 5))
+        if process_function_string[:4] in (store_to_buffer_w, store_to_buffer_x):
+            msg_buf_reg = i
+            process_function_string = process_function_string[4:]
+            break
+    if msg_buf_reg is None:
+        for i in range(29):
+            store_to_buffer_x = struct.pack('<I', 0xF9000000 | sfco_reg | (i << 5))
+            store_to_buffer_w = struct.pack('<I', 0xB9000000 | sfco_reg | (i << 5))
+            if process_function_string[4:8] in (store_to_buffer_w, store_to_buffer_x):
+                msg_buf_reg = i
+                process_function_string = process_function_string[8:]
+                break
+    if msg_buf_reg is None:
+        for i in range(29):
+            store_to_buffer_x = struct.pack('<I', 0xF9000000 | sfco_reg | (i << 5))
+            store_to_buffer_w = struct.pack('<I', 0xB9000000 | sfco_reg | (i << 5))
+            if process_function_string[8:12] in (store_to_buffer_w, store_to_buffer_x):
+                msg_buf_reg = i
+                process_function_string = process_function_string[12:]
+                break
+    if msg_buf_reg is None:
+        return 0
+    for i in range(0, min(len(process_function_string) - 12, 24), 4):
+        mov, movk, stp = struct.unpack('<III', process_function_string[i:i + 12])
+        if (mov & 0xFFE00000) != 0x52800000:
+            # print('mov fail')
+            continue
+        if (movk & 0xFFE00000) != 0x72A00000:
+            # print('movk fail')
+            continue
+        if (mov & 0x1F) != (movk & 0x1F):
+            # print('mov_reg fail')
+            continue
+        mov_reg = mov & 0x1F
+        intf_id = ((mov >> 5) & 0xFFFF) | (((movk >> 5) & 0xFFFF) << 16)
+        if (stp & 0xFFFFFFE0) == (0x29010000 | (msg_buf_reg << 5) | (mov_reg << 10)):
+            return intf_id
+    return 0
+
+
+def get_interface_name_by_id(name_to_id_map, process_function):
+    assert process_function in name_to_id_map
+    intf_id = name_to_id_map[process_function]
+    try:
+        return known_interface_map[intf_id]
+    except KeyError:
+        return '0x%X [ID = 0x%08x]' % (process_function, intf_id)
+
+
 PUBLIC = False
 
 
@@ -217,7 +297,7 @@ def dump_ipc_filename(fname):
     data_syms = {}
     fptr_syms = {}
     got_data_syms = {}
-    got = [(start, end, name, section_type) for start, end, name, section_type in f.sections if name == '.got'][0]
+    got = (f.got_start, f.got_end)
     for offset, r_type, sym, addend in f.relocations:
         if offset < got[0] or got[1] < offset:
             continue
@@ -247,20 +327,16 @@ def dump_ipc_filename(fname):
                                 b'N2nn2sf4cmif6server23CmifServerDomainManager6DomainE']:
                             vt_infos[sym] = vt_ofs
     # Locate a known IPC vtable
-    known_func = None
+    known_funcs = set([])
     for sym in vt_infos:
-        vt_ofs = vt_infos[sym]
-        if known_func is None:
-            known_func = simulator.qword(DEFAULT_LOAD_BASE + vt_ofs + 0x20)
-        else:
-            assert known_func == simulator.qword(DEFAULT_LOAD_BASE + vt_ofs + 0x20)
+        known_funcs.add(simulator.qword(BASE_ADDRESS + vt_infos[sym] + 0x20))
     # Find all IPC vtables
     ipc_vts = {}
     for offset in got_data_syms:
         vt_ofs = got_data_syms[offset]
         vt_base = vt_ofs + BASE_ADDRESS
         if f.dataoff <= vt_ofs <= f.dataoff + f.datasize:
-            if simulator.qword(vt_base + 0x20) == known_func:
+            if simulator.qword(vt_base + 0x20) in known_funcs:
                 vt = []
                 ofs = 0x30
                 while simulator.qword(vt_base + ofs) != 0:
@@ -286,9 +362,10 @@ def dump_ipc_filename(fname):
             this_ofs = simulator.qword(BASE_ADDRESS + rtti_ofs + 8) - BASE_ADDRESS
             if f.rodataoff <= this_ofs <= f.rodataoff + f.rodatasize:
                 sym = f.binfile.read_from('512s', this_ofs)
-                if b'\x00' in sym:
-                    sym = sym[:sym.index(b'\x00')]
-                    ipc_info['name'] = demangle(sym)
+                # RTTI symbols work worse than interface names via hashes.
+                # if b'\x00' in sym:
+                #    sym = sym[:sym.index(b'\x00')]
+                #    ipc_info['name'] = demangle(sym)
         ipc_infos.append(ipc_info)
 
     s_tables = []
@@ -311,6 +388,8 @@ def dump_ipc_filename(fname):
             process_functions.append(fptr)
             s_tables.append(addr)
             process_function_names[fptr] = stable_name
+
+    process_function_to_intf_id = {}
 
     if not process_functions:
         candidates = []
@@ -337,9 +416,13 @@ def dump_ipc_filename(fname):
                 continue
             idx = bisect.bisect(candidates, (i.start(), 0))
             process_function, s_table = candidates[idx - 1]
-            if text_string.index(b'\xC0\x03\x5F\xD6', process_function) > i.start():
-                process_functions.append(DEFAULT_LOAD_BASE + process_function)
-                s_tables.append(DEFAULT_LOAD_BASE + s_table)
+            retaddr_idx = text_string.index(b'\xC0\x03\x5F\xD6', process_function)
+            if retaddr_idx > i.start():
+                process_functions.append(BASE_ADDRESS + process_function)
+                s_tables.append(BASE_ADDRESS + s_table)
+                intf_id = get_interface_id(text_string[process_function:retaddr_idx + 0x2000])
+                if intf_id != 0:
+                    process_function_to_intf_id[BASE_ADDRESS + process_function] = intf_id
 
         # 5.x: match on the "SFCI" constant used in the template of s_Table
         #   MOV  W?, #0x4653
@@ -353,9 +436,13 @@ def dump_ipc_filename(fname):
                     continue
                 idx = bisect.bisect(candidates, (i.start(), 0))
                 process_function, s_table = candidates[idx - 1]
-                if text_string.index(b'\xC0\x03\x5F\xD6', process_function) > i.start():
-                    process_functions.append(DEFAULT_LOAD_BASE + process_function)
-                    s_tables.append(DEFAULT_LOAD_BASE + s_table)
+                retaddr_idx = text_string.index(b'\xC0\x03\x5F\xD6', process_function)
+                if retaddr_idx > i.start():
+                    process_functions.append(BASE_ADDRESS + process_function)
+                    s_tables.append(BASE_ADDRESS + s_table)
+                    intf_id = get_interface_id(text_string[process_function:retaddr_idx + 0x2000])
+                    if intf_id != 0:
+                        process_function_to_intf_id[BASE_ADDRESS + process_function] = intf_id
 
     process_name = f.get_name()
     if process_name is None:
@@ -389,38 +476,43 @@ def dump_ipc_filename(fname):
             if 'name' in ipc_info:
                 name = get_interface_name(ipc_info['name'])
                 msg = get_interface_msg(ipc_info['name'])
+        if process_function in process_function_names:
+            name = process_function_names[process_function]
+        if process_function in process_function_to_intf_id:
+            name = get_interface_name_by_id(process_function_to_intf_id, process_function)
+            msg = '0x%08x' % process_function_to_intf_id[process_function]
         if name is None and msg is None:
-            if process_function in process_function_names:
-                name = process_function_names[process_function]
-            else:
-                # try to figure out name for 4.0+
-                traces = list(traces)
-                hashed, hashed2, hash_code, hash_code2 = get_hashes(traces)
-                probably, old_version = find_hash_matches(hashed, hashed2)
+            # try to figure out name for 4.0+
+            traces = list(traces)
+            hashed, hashed2, hash_code, hash_code2 = get_hashes(traces)
 
-                name = None
-                if probably is not None:
-                    if len(probably) == 1:
-                        # TODO: need to figure this out earlier
-                        # name = probably[0]
-                        msg = 'single hash match %r' % (probably[0],)
-                    else:
-                        msg = repr(probably)
-                    if old_version:
-                        msg = '3.0.0: ' + msg
+            probably, old_version = find_hash_matches(hashed, hashed2)
+
+            name = None
+            if probably is not None:
+                if len(probably) == 1:
+                    # TODO: need to figure this out earlier
+                    # name = probably[0]
+                    msg = 'single hash match %r' % (probably[0],)
                 else:
-                    msg = '%s %r' % (hashed, hash_code)
-                    if hash_code != hash_code2:
-                        msg += ' %r' % (hash_code2,)
+                    msg = repr(probably)
+                if old_version:
+                    msg = '3.0.0: ' + msg
+            else:
+                msg = '%s %r' % (hashed, hash_code)
+                if hash_code != hash_code2:
+                    msg += ' %r' % (hash_code2,)
 
-                if name is None:
-                    name = '0x%X' % process_function
-
+            if name is None:
+                name = '0x%X' % process_function
+        # print(name, msg)
         if msg is None:
             print('  ' + repr(name) + ': {')
         else:
             if ipc_info is None:
-                msg = ', vtable size %d, possible vtables [%s]' % (len(traces), ', '.join(
+                if not msg:
+                    msg = ''
+                msg += ', vtable size %d, possible vtables [%s]' % (len(traces), ', '.join(
                     '0x%X %d' % (info['base'], len(info['funcs'])) for info in
                     sorted(possibles, key=lambda p: len(p['funcs']))))
             print('  ' + repr(name) + ': { #', msg)
@@ -430,15 +522,26 @@ def dump_ipc_filename(fname):
             parts = []
             for k in ('outinterfaces', 'ininterfaces'):
                 if k in description:
-                    description[k] = [(process_function_names.get(simulator.qword(i), '0x%X' % (
-                        simulator.qword(i),)) if i is not None else None) for i in description[k]]
+                    description[k] = [
+                        get_interface_name_by_id(process_function_to_intf_id, simulator.qword(i))
+                        if i is not None and simulator.qword(i) in process_function_to_intf_id else
+                        (process_function_names.get(simulator.qword(i), '0x%X' % (simulator.qword(i),))
+                         if i is not None else None) for i in description[k]
+                    ]
 
-            for i in ['vt', 'func', 'lr', 'inbytes', 'outbytes', 'buffers', 'inhandles', 'outhandles', 'outinterfaces',
-                      'pid', 'ininterfaces']:
-                if i not in description: continue
-                if PUBLIC and i in ('vt', 'lr'): continue
+            for i in ['vt', 'func', 'lr', 'inbytes', 'outbytes', 'buffers', 'buffer_entry_sizes',
+                      'inhandles', 'outhandles', 'outinterfaces', 'pid', 'ininterfaces']:
+                if i not in description:
+                    continue
+                if PUBLIC and i in ('vt', 'lr'):
+                    continue
                 v = description[i]
-                if isinstance(v, (list, bool)):
+                if i == 'buffer_entry_sizes':
+                    if any(v):
+                        v = '[%s]' % ', '.join('0x%X' % x for x in v)
+                    else:
+                        continue
+                elif isinstance(v, (list, bool)):
                     v = repr(v)
                 else:
                     if v >= 10:

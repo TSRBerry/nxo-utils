@@ -247,7 +247,7 @@ class IPCServerSimulator(Nx64Simulator):
             trace = self.try_trace_cmd(dispatch_func, cmd_id, struct.pack('<QQQQ', 0, 0, 0, 0), buffer_size=buffer_size)
             if trace.is_correct():
                 return trace
-        print('retry?')
+        # print('retry?')
         return trace  # oh well
 
     def try_trace_cmd(self, dispatch_func, cmd_id, data, **kwargs):

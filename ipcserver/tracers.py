@@ -138,7 +138,7 @@ class BranchTracer(object):
 
 
 class IPCServerTrace(object):
-    def __init__(self, simulator, dispatch_func, cmd_id, buffer_size=0x1000):
+    def __init__(self, simulator, dispatch_func, cmd_id, buffer_size=0xF0000000):
         self.dispatch_func = dispatch_func
         self.cmd_id = cmd_id
         self._simulator = simulator
@@ -183,16 +183,20 @@ class IPCServerTrace(object):
         assert self.in_handles_count < 20
         assert self.out_handles_count < 20
 
-        self.description = {'inbytes': self.bytes_in, 'outbytes': self.bytes_out,
-                            'ininterfaces': [None] * self.in_interface_count,
-                            'outinterfaces': [None] * self.out_interface_count,
-                            'inhandles': metainfo[0x4C // 4:0x4C // 4 + self.in_handles_count],
-                            'outhandles': metainfo[0x6C // 4:0x6C // 4 + self.out_handles_count],
-                            'buffers': metainfo[0x2c // 4:0x2c // 4 + self.buffer_count], 'pid': metainfo[0] == 1,
-                            'lr': uc.reg_read(UC_ARM64_REG_LR)}
+        self.description = {
+            'inbytes': self.bytes_in, 'outbytes': self.bytes_out,
+            'ininterfaces': [None] * self.in_interface_count,
+            'outinterfaces': [None] * self.out_interface_count,
+            'inhandles': metainfo[0x4C // 4:0x4C // 4 + self.in_handles_count],
+            'outhandles': metainfo[0x6C // 4:0x6C // 4 + self.out_handles_count],
+            'buffers': metainfo[0x2c // 4:0x2c // 4 + self.buffer_count],
+            'buffer_entry_sizes': [0] * self.buffer_count,
+            'pid': metainfo[0] == 1,
+            'lr': uc.reg_read(UC_ARM64_REG_LR)
+        }
 
-        for i in ['outinterfaces', 'inhandles', 'outhandles', 'buffers', 'pid', 'ininterfaces']:
-            if not self.description[i]:
+        for i in ['outinterfaces', 'inhandles', 'outhandles', 'buffers', 'buffer_entry_sizes', 'pid', 'ininterfaces']:
+            if i in self.description and not self.description[i]:
                 del self.description[i]
 
         if self.in_interface_count:
@@ -220,11 +224,17 @@ class IPCServerTrace(object):
         return True
 
     def GetBuffers(self, uc):
+        self.buffer_metas = [None] * self.buffer_count
         outptr = uc.reg_read(UC_ARM64_REG_X1)
         i = outptr
+        n = 0
         while i < outptr + self.buffer_count * 0x10:
-            uc.mem_write(i, struct.pack('<QQ', self._simulator.buffer_memory, self.buffer_size))
+            if self.description['buffers'][n] & 0x10:
+                self.description['buffer_entry_sizes'][n] = struct.unpack('<Q', uc.mem_read(i + 8, 8))[0]
+            uc.mem_write(i, struct.pack('<QQ', self._simulator.buffer_memory + n, self.buffer_size))
+            self.buffer_metas[n] = self._simulator.buffer_memory + n, self.buffer_size
             i += 0x10
+            n += 1
         uc.mem_write(self._simulator.buffer_memory, struct.pack('<Q', 1))
         self.ret(uc, 0)
         return True
@@ -270,6 +280,24 @@ class IPCServerTrace(object):
     def target_function(self, offset, uc):
         if self.description is None:
             return False
+        if self.buffer_count > 0:
+            sp = uc.reg_read(UC_ARM64_REG_SP)
+            for i in iter_range(7):
+                x = uc.reg_read(UC_ARM64_REG_X1 + i)
+                if x >= sp and (x - sp) <= 0x1000:
+                    addr, cnt = struct.unpack('<QQ', uc.mem_read(x, 0x10))
+                    if addr >= self._simulator.buffer_memory and addr - self._simulator.buffer_memory < self.buffer_count:
+                        n = addr - self._simulator.buffer_memory
+                        if cnt != self.buffer_metas[n][1]:
+                            ent_est = max(1, (self.buffer_metas[n][1] // cnt) - 10)
+                            for i in iter_range(32):
+                                if self.buffer_metas[n][1] // ent_est == cnt:
+                                    break
+                                ent_est += 1
+                            assert self.buffer_metas[n][1] // ent_est == cnt
+                            # print('?? %X != %X,%X' % (cnt, self.buffer_metas[n][1], ent_est))
+                            # print('target func %X %X %X %X %X' % (uc.reg_read(UC_ARM64_REG_SP), uc.reg_read(UC_ARM64_REG_X1), uc.reg_read(UC_ARM64_REG_X2), uc.reg_read(UC_ARM64_REG_X3), uc.reg_read(UC_ARM64_REG_X4)))
+                            self.description['buffer_entry_sizes'][n] = ent_est
         self.description['vt'] = offset
         self.ret(uc, 0)
         return True
