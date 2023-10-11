@@ -3,5 +3,3 @@ capstone
 unicorn
 lz4
 nxo64 @ file://./nxo64/dist/nxo64-0.0.1-py2.py3-none-any.whl
-# if you are using python2 this is also required
-enum34
