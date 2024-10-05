@@ -1,7 +1,8 @@
 import sys
 import struct
 
-from nxo64 import load_nxo, STT_FUNC
+from nxo64.files import load_nxo
+from nxo64.consts import STT
 import arm64
 
 def main(filenames):
@@ -16,7 +17,7 @@ def main(filenames):
 
 	important = set()
 	for sym in f.symbols:
-		if sym.type != STT_FUNC: continue
+		if sym.type != STT.FUNC: continue
 		if sym.shndx and sym.value and sym.size:
 			adrp_regs = set()
 			mask = [0xFFFFFFFF for i in range(0, sym.size, 4)]
@@ -45,9 +46,9 @@ def main(filenames):
 						if arm64.get_Rn(instr) in adrp_regs:
 							mask[i] &= ~(0xFFF << 10)
 
-			mask_str = ''.join(struct.pack('<I', m) for m in mask)
-			bits = ''.join(struct.pack('<I', i&m) for i,m in zip(instrs, mask))
-			regex = ''.join((re.escape(i) if m == '\xFF' else r'[\0-\xff]') for i, m in zip(bits, mask_str))
+			mask_str = b''.join(struct.pack('<I', m) for m in mask)
+			bits = b''.join(struct.pack('<I', i&m) for i,m in zip(instrs, mask))
+			regex = b''.join((re.escape(i.to_bytes(1)) if m == 0xff else b'[\0-\xff]') for i, m in zip(bits, mask_str))
 
 			positions = [m.start() for m in re.finditer(regex, textstr)]
 			assert len(positions) >= 1, hex(sym.value + 0x7100000000)
