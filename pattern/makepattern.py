@@ -47,7 +47,7 @@ def main(filenames):
 							mask[i] &= ~(0xFFF << 10)
 
 			if sys.version_info[0] > 2:
-			    mask_str = b''.join(struct.pack('<I', m) for m in mask)
+				mask_str = b''.join(struct.pack('<I', m) for m in mask)
 				bits = b''.join(struct.pack('<I', i & m) for i, m in zip(instrs, mask))
 				regex = b''.join((re.escape(i.to_bytes(1)) if m == 0xff else b'[\0-\xff]') for i, m in zip(bits, mask_str))
 			else:
