@@ -46,9 +46,14 @@ def main(filenames):
 						if arm64.get_Rn(instr) in adrp_regs:
 							mask[i] &= ~(0xFFF << 10)
 
-			mask_str = b''.join(struct.pack('<I', m) for m in mask)
-			bits = b''.join(struct.pack('<I', i&m) for i,m in zip(instrs, mask))
-			regex = b''.join((re.escape(i.to_bytes(1)) if m == 0xff else b'[\0-\xff]') for i, m in zip(bits, mask_str))
+			if sys.version_info[0] > 2:
+			    mask_str = b''.join(struct.pack('<I', m) for m in mask)
+				bits = b''.join(struct.pack('<I', i & m) for i, m in zip(instrs, mask))
+				regex = b''.join((re.escape(i.to_bytes(1)) if m == 0xff else b'[\0-\xff]') for i, m in zip(bits, mask_str))
+			else:
+				mask_str = ''.join(struct.pack('<I', m) for m in mask)
+				bits = ''.join(struct.pack('<I', i & m) for i, m in zip(instrs, mask))
+				regex = ''.join((re.escape(i) if m == '\xFF' else r'[\0-\xff]') for i, m in zip(bits, mask_str))
 
 			positions = [m.start() for m in re.finditer(regex, textstr)]
 			assert len(positions) >= 1, hex(sym.value + 0x7100000000)
