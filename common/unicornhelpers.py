@@ -18,6 +18,7 @@ UC_REG_BY_NAME = {
     "x8": UC_ARM64_REG_X8,
     "x9": UC_ARM64_REG_X9,
     "x10": UC_ARM64_REG_X10,
+    "x22": UC_ARM64_REG_X22,
     "x23": UC_ARM64_REG_X23,
     "x24": UC_ARM64_REG_X24,
     "x25": UC_ARM64_REG_X25,
