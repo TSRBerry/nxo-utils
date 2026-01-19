@@ -1,3 +1,9 @@
+# Repository moved
+
+You can find the new repository here: https://codeberg.org/TSRBerry/nxo-utils.git
+
+---
+
 # switch-reversing
 
 These are my personal Switch reversing scripts.
